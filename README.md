@@ -75,6 +75,22 @@ All AI calls are server-side through `/api/generate`; API keys are never exposed
 
 This app uses API routes for AI, Stripe and admin actions, so deploy it as a full-stack Next.js app on Cloudflare Workers through OpenNext. Cloudflare's current Next.js guide sends full-stack SSR apps to the Workers/OpenNext flow; static-only Pages is only for apps without server routes.
 
+If you only need the page to open immediately in Cloudflare Pages, the repository also includes a static fallback:
+
+```text
+Build command: leave empty
+Output directory: /
+```
+
+or:
+
+```text
+Build command: leave empty
+Output directory: out
+```
+
+That fallback prevents a 404, but the full SaaS features require the Workers/OpenNext deployment below.
+
 Install and preview:
 
 ```bash
