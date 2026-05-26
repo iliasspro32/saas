@@ -3,10 +3,400 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="refresh" content="0; url=/" />
     <title>IvoMarket AI</title>
+    <meta name="description" content="AI content generator SaaS for creators, marketers and digital product sellers." />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --panel-2: #eef4ff;
+        --text: #101827;
+        --muted: #607089;
+        --line: #dbe3ef;
+        --brand: #2563eb;
+        --brand-2: #14b8a6;
+        --danger: #e11d48;
+        --shadow: 0 18px 60px rgba(15, 23, 42, 0.12);
+      }
+      [data-theme="dark"] {
+        --bg: #07111f;
+        --panel: #0f1b2d;
+        --panel-2: #132238;
+        --text: #f8fafc;
+        --muted: #a8b6ca;
+        --line: rgba(255, 255, 255, 0.13);
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 12% 10%, rgba(37, 99, 235, 0.18), transparent 28rem),
+          radial-gradient(circle at 88% 12%, rgba(20, 184, 166, 0.14), transparent 26rem),
+          var(--bg);
+      }
+      button, input, select, textarea { font: inherit; }
+      button { cursor: pointer; }
+      .app { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 20px;
+        border-right: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel) 92%, transparent);
+        backdrop-filter: blur(18px);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 950; font-size: 18px; }
+      .logo {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        color: white;
+        background: linear-gradient(135deg, var(--brand), var(--brand-2));
+        box-shadow: var(--shadow);
+      }
+      .nav { display: grid; gap: 8px; margin-top: 34px; }
+      .nav button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        border: 0;
+        border-radius: 10px;
+        padding: 0 12px;
+        color: var(--muted);
+        background: transparent;
+        text-align: left;
+        font-weight: 800;
+      }
+      .nav button.active, .nav button:hover { color: var(--text); background: var(--panel-2); }
+      .main { padding: 24px; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+      .mobile-brand { display: none; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .btn {
+        min-height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        padding: 0 15px;
+        background: var(--panel);
+        color: var(--text);
+        font-weight: 850;
+      }
+      .btn.primary { background: var(--brand); border-color: var(--brand); color: white; }
+      .btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 20px;
+        align-items: stretch;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel) 96%, transparent);
+        border-radius: 14px;
+        padding: 22px;
+        box-shadow: var(--shadow);
+      }
+      .eyebrow {
+        display: inline-flex;
+        color: var(--brand);
+        background: color-mix(in srgb, var(--brand) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 900;
+      }
+      h1 { margin: 18px 0 0; font-size: clamp(42px, 7vw, 82px); line-height: 0.95; letter-spacing: 0; }
+      h2 { margin: 0; font-size: 26px; }
+      h3 { margin: 0 0 8px; }
+      p { color: var(--muted); line-height: 1.65; }
+      .lead { max-width: 660px; font-size: 18px; }
+      .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+      .metric { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--panel); }
+      .metric strong { display: block; font-size: 26px; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
+      .pricing { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .price { min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; }
+      .price .money { font-size: 34px; font-weight: 950; margin: 8px 0; }
+      .generator { display: grid; grid-template-columns: 420px 1fr; gap: 18px; align-items: start; }
+      .form { display: grid; gap: 13px; }
+      label { display: grid; gap: 7px; font-weight: 850; font-size: 13px; }
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        color: var(--text);
+        background: var(--panel);
+        padding: 12px;
+        outline: none;
+      }
+      textarea { min-height: 108px; resize: vertical; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      pre {
+        white-space: pre-wrap;
+        min-height: 500px;
+        margin: 16px 0 0;
+        padding: 18px;
+        border-radius: 12px;
+        background: var(--panel-2);
+        color: var(--text);
+        line-height: 1.65;
+        overflow: auto;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 12px 8px; vertical-align: top; }
+      .hidden { display: none !important; }
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        background: var(--text);
+        color: var(--bg);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-weight: 850;
+        box-shadow: var(--shadow);
+        opacity: 0;
+        transform: translateY(12px);
+        transition: .2s;
+      }
+      .toast.show { opacity: 1; transform: translateY(0); }
+      @media (max-width: 980px) {
+        .app { grid-template-columns: 1fr; }
+        .sidebar { display: none; }
+        .mobile-brand { display: flex; }
+        .hero, .generator, .grid, .pricing { grid-template-columns: 1fr; }
+        .metrics { grid-template-columns: 1fr; }
+        .main { padding: 16px; }
+      }
+    </style>
   </head>
-  <body>
-    <a href="/">Open IvoMarket AI</a>
+  <body data-theme="dark">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand"><div class="logo">AI</div><span>IvoMarket AI</span></div>
+        <nav class="nav" id="nav">
+          <button class="active" data-page="home">Dashboard</button>
+          <button data-page="generator">AI Generator</button>
+          <button data-page="history">History</button>
+          <button data-page="pricing">Pricing</button>
+          <button data-page="admin">Admin</button>
+          <button data-page="settings">Settings</button>
+        </nav>
+      </aside>
+      <main class="main">
+        <div class="topbar">
+          <div class="brand mobile-brand"><div class="logo">AI</div><span>IvoMarket AI</span></div>
+          <div class="actions">
+            <button class="btn" id="themeBtn">Toggle theme</button>
+            <button class="btn primary" data-go="generator">New content</button>
+          </div>
+        </div>
+
+        <section data-view="home">
+          <div class="hero">
+            <div class="panel">
+              <span class="eyebrow">AI content generator SaaS</span>
+              <h1>IvoMarket AI</h1>
+              <p class="lead">Generate hooks, Facebook Ads, TikTok scripts, Instagram captions, product descriptions, Etsy listings, emails, landing pages, lead magnets and prompt packs from one clean dashboard.</p>
+              <div class="actions">
+                <button class="btn primary" data-go="generator">Open generator</button>
+                <button class="btn" data-go="pricing">View pricing</button>
+              </div>
+              <div class="metrics">
+                <div class="metric"><strong id="creditCount">150</strong><span>Credits</span></div>
+                <div class="metric"><strong id="historyCount">0</strong><span>Saved outputs</span></div>
+                <div class="metric"><strong>Pro</strong><span>Demo plan</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <h2>Creator workflow</h2>
+              <div class="grid" style="grid-template-columns:1fr; margin-top:16px;">
+                <div class="metric"><strong>1</strong><span>Choose content type and niche.</span></div>
+                <div class="metric"><strong>2</strong><span>Pick tone, platform, language and format.</span></div>
+                <div class="metric"><strong>3</strong><span>Copy, download and save to history.</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="panel"><h3>Ads and UGC</h3><p>Facebook Ads, offer angles, UGC scripts and scroll-stopping hooks.</p></div>
+            <div class="panel"><h3>Short video</h3><p>TikTok, Reels, YouTube Shorts and faceless scripts with retention beats.</p></div>
+            <div class="panel"><h3>Digital products</h3><p>PLR ideas, Canva packs, lead magnets, prompt packs and Etsy listings.</p></div>
+          </div>
+        </section>
+
+        <section class="hidden" data-view="generator">
+          <div class="generator">
+            <div class="panel">
+              <h2>AI Generator</h2>
+              <p>Works instantly in Cloudflare Pages demo mode. Connect OpenRouter in the full Next app for live AI.</p>
+              <form class="form" id="generatorForm">
+                <label>Content type
+                  <select name="type">
+                    <option>Viral Hooks</option><option>Facebook Ads</option><option>TikTok/Reels Script</option><option>Instagram Caption</option><option>Product Description</option><option>Etsy Listing</option><option>Email Campaign</option><option>Landing Page Copy</option><option>Lead Magnet Ideas</option><option>AI Prompt Pack</option>
+                  </select>
+                </label>
+                <label>Niche <input name="niche" required placeholder="Example: digital planners for Etsy sellers" /></label>
+                <label>Target audience <input name="audience" required placeholder="Example: busy creators selling digital products" /></label>
+                <div class="row">
+                  <label>Tone <select name="tone"><option>Professional</option><option>Friendly</option><option>Bold</option><option>Luxury</option><option>Witty</option></select></label>
+                  <label>Platform <select name="platform"><option>General</option><option>Facebook</option><option>TikTok</option><option>Instagram</option><option>YouTube</option><option>Etsy</option><option>Email</option></select></label>
+                </div>
+                <div class="row">
+                  <label>Language <select name="language"><option>English</option><option>Spanish</option><option>French</option><option>Portuguese</option></select></label>
+                  <label>Results <input name="count" type="number" value="3" min="1" max="10" /></label>
+                </div>
+                <label>Extra context <textarea name="details" placeholder="Product, offer, pain points, desired CTA..."></textarea></label>
+                <button class="btn primary" type="submit">Generate content</button>
+              </form>
+            </div>
+            <div class="panel">
+              <div class="topbar" style="margin:0;">
+                <div><h2>Output</h2><p style="margin:4px 0 0;">Saved automatically to history.</p></div>
+                <div class="actions"><button class="btn" id="copyBtn">Copy</button><button class="btn" id="downloadBtn">Download</button></div>
+              </div>
+              <pre id="output">Your generated content will appear here.</pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="hidden" data-view="history">
+          <div class="panel">
+            <div class="topbar" style="margin:0 0 16px;"><h2>History</h2><button class="btn danger" id="clearHistory">Clear history</button></div>
+            <table><thead><tr><th>Type</th><th>Niche</th><th>Created</th><th>Preview</th></tr></thead><tbody id="historyTable"></tbody></table>
+          </div>
+        </section>
+
+        <section class="hidden" data-view="pricing">
+          <h2>Pricing</h2>
+          <div class="pricing" style="margin-top:18px;">
+            <div class="panel price"><div><h3>Free</h3><div class="money">$0</div><p>15 demo credits</p></div><button class="btn">Current</button></div>
+            <div class="panel price"><div><h3>Starter</h3><div class="money">$19</div><p>300 credits monthly</p></div><button class="btn primary">Choose</button></div>
+            <div class="panel price"><div><h3>Pro</h3><div class="money">$49</div><p>1,200 credits monthly</p></div><button class="btn primary">Choose</button></div>
+            <div class="panel price"><div><h3>Agency</h3><div class="money">$149</div><p>4,000 credits monthly</p></div><button class="btn primary">Choose</button></div>
+          </div>
+        </section>
+
+        <section class="hidden" data-view="admin">
+          <div class="grid">
+            <div class="panel"><h3>Users</h3><p>1 demo user</p></div>
+            <div class="panel"><h3>Revenue</h3><p>$0 demo revenue</p></div>
+            <div class="panel"><h3>API usage</h3><p id="usageText">0 demo generations</p></div>
+          </div>
+          <div class="panel" style="margin-top:18px;"><h2>Admin controls</h2><p>Full admin CRUD is included in the Next/Supabase source. This Cloudflare Pages fallback shows the interface and local data flow.</p></div>
+        </section>
+
+        <section class="hidden" data-view="settings">
+          <div class="panel"><h2>Settings</h2><p>Demo mode active. For production, deploy the full Next app with Supabase, Stripe and OpenRouter environment variables.</p><button class="btn" id="resetDemo">Reset demo data</button></div>
+        </section>
+      </main>
+    </div>
+    <div class="toast" id="toast">Done</div>
+    <script>
+      const state = {
+        credits: Number(localStorage.getItem("ivoCredits") || 150),
+        history: JSON.parse(localStorage.getItem("ivoHistory") || "[]")
+      };
+      const $ = (q) => document.querySelector(q);
+      const $$ = (q) => [...document.querySelectorAll(q)];
+      function save() {
+        localStorage.setItem("ivoCredits", state.credits);
+        localStorage.setItem("ivoHistory", JSON.stringify(state.history));
+        $("#creditCount").textContent = state.credits;
+        $("#historyCount").textContent = state.history.length;
+        $("#usageText").textContent = `${state.history.length} demo generations`;
+        renderHistory();
+      }
+      function toast(text) {
+        const el = $("#toast");
+        el.textContent = text;
+        el.classList.add("show");
+        setTimeout(() => el.classList.remove("show"), 1800);
+      }
+      function go(page) {
+        $$("[data-view]").forEach((el) => el.classList.toggle("hidden", el.dataset.view !== page));
+        $$("#nav button").forEach((el) => el.classList.toggle("active", el.dataset.page === page));
+        scrollTo({ top: 0, behavior: "smooth" });
+      }
+      function generate(data) {
+        const count = Math.max(1, Math.min(10, Number(data.get("count") || 3)));
+        const type = data.get("type");
+        const niche = data.get("niche");
+        const audience = data.get("audience");
+        const tone = data.get("tone");
+        const platform = data.get("platform");
+        const language = data.get("language");
+        const details = data.get("details") || "No extra context";
+        const blocks = [];
+        for (let i = 1; i <= count; i++) {
+          blocks.push(`${i}. ${type} for ${niche}
+Audience: ${audience}
+Tone: ${tone}
+Platform: ${platform}
+Language: ${language}
+Hook: Stop scrolling if you want a faster way to turn ${niche} into content that actually sells.
+Body: Your audience is already looking for a simpler path. Position the offer around one clear promise, show the pain you remove, then make the next step obvious.
+CTA: Save this, test it today, and turn it into your next ${platform} campaign.
+Context used: ${details}`);
+        }
+        return blocks.join("\\n\\n---\\n\\n");
+      }
+      function renderHistory() {
+        const rows = state.history.map(item => `<tr><td>${item.type}</td><td>${item.niche}</td><td>${new Date(item.createdAt).toLocaleString()}</td><td>${item.output.slice(0, 120)}...</td></tr>`).join("");
+        $("#historyTable").innerHTML = rows || `<tr><td colspan="4">No generations yet.</td></tr>`;
+      }
+      $("#nav").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-page]");
+        if (btn) go(btn.dataset.page);
+      });
+      $$("[data-go]").forEach(btn => btn.addEventListener("click", () => go(btn.dataset.go)));
+      $("#themeBtn").addEventListener("click", () => {
+        document.body.dataset.theme = document.body.dataset.theme === "dark" ? "light" : "dark";
+      });
+      $("#generatorForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (state.credits <= 0) return toast("No credits left");
+        const data = new FormData(e.currentTarget);
+        const output = generate(data);
+        $("#output").textContent = output;
+        state.credits -= 1;
+        state.history.unshift({ type: data.get("type"), niche: data.get("niche"), output, createdAt: Date.now() });
+        save();
+        toast("Generated and saved");
+      });
+      $("#copyBtn").addEventListener("click", async () => {
+        await navigator.clipboard.writeText($("#output").textContent);
+        toast("Copied");
+      });
+      $("#downloadBtn").addEventListener("click", () => {
+        const blob = new Blob([$("#output").textContent], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ivomarket-ai-output.txt";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+      $("#clearHistory").addEventListener("click", () => {
+        state.history = [];
+        save();
+        toast("History cleared");
+      });
+      $("#resetDemo").addEventListener("click", () => {
+        state.credits = 150;
+        state.history = [];
+        save();
+        toast("Demo reset");
+      });
+      save();
+    </script>
   </body>
 </html>
