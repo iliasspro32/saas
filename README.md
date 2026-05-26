@@ -78,6 +78,13 @@ This app uses API routes for AI, Stripe and admin actions, so deploy it as a ful
 If you only need the page to open immediately in Cloudflare Pages, the repository also includes a static fallback:
 
 ```text
+Build command: npm run pages:static
+Output directory: dist
+```
+
+or:
+
+```text
 Build command: leave empty
 Output directory: /
 ```

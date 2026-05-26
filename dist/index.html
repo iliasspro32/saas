@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IvoMarket AI</title>
+    <meta name="description" content="AI content generator SaaS for creators, marketers and digital product sellers." />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07111f;
+        --panel: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f8fafc;
+        --muted: #b6c2d1;
+        --brand: #4f8cff;
+        --mint: #18d4b8;
+        --pink: #fb7185;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 20% 20%, rgba(79, 140, 255, 0.28), transparent 34rem),
+          radial-gradient(circle at 82% 18%, rgba(24, 212, 184, 0.18), transparent 30rem),
+          linear-gradient(135deg, #07111f, #0f172a 54%, #111827);
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 0;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 900; letter-spacing: 0; }
+      .logo {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--brand), var(--mint));
+        color: #06111f;
+        font-weight: 950;
+      }
+      .nav { display: flex; gap: 10px; align-items: center; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.08);
+        font-weight: 800;
+      }
+      .btn.primary {
+        background: linear-gradient(135deg, var(--brand), #2563eb);
+        border-color: transparent;
+        box-shadow: 0 20px 60px rgba(37, 99, 235, 0.28);
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 44px;
+        align-items: center;
+        padding: 84px 0 64px;
+      }
+      .badge {
+        display: inline-flex;
+        border: 1px solid rgba(24, 212, 184, 0.28);
+        color: #a7fff2;
+        background: rgba(24, 212, 184, 0.08);
+        border-radius: 999px;
+        padding: 9px 14px;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      h1 {
+        margin: 22px 0 0;
+        font-size: clamp(46px, 8vw, 88px);
+        line-height: 0.92;
+        letter-spacing: 0;
+      }
+      .lead {
+        max-width: 680px;
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 19px;
+        line-height: 1.75;
+      }
+      .actions { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 34px; }
+      .panel {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.25);
+      }
+      .screen {
+        border-radius: 12px;
+        background: #050b14;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 20px;
+      }
+      .bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+      .pill { color: #04130f; background: var(--mint); border-radius: 8px; padding: 5px 9px; font-size: 12px; font-weight: 900; }
+      .tools { display: grid; gap: 12px; margin-top: 18px; }
+      .tool { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); border-radius: 10px; padding: 16px; font-weight: 800; }
+      .output { margin-top: 18px; background: #fff; color: #111827; border-radius: 10px; padding: 16px; line-height: 1.55; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        padding: 36px 0 80px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.06);
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .card h3 { margin: 0 0 10px; }
+      .card p { margin: 0; color: var(--muted); line-height: 1.6; }
+      @media (max-width: 820px) {
+        .hero { grid-template-columns: 1fr; padding-top: 44px; }
+        .grid { grid-template-columns: 1fr; }
+        .nav .btn:first-child { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/">
+          <span class="logo">AI</span>
+          <span>IvoMarket AI</span>
+        </a>
+        <nav class="nav">
+          <a class="btn" href="https://github.com/iliasspro32/saas">GitHub</a>
+          <a class="btn primary" href="#setup">Deploy setup</a>
+        </nav>
+      </header>
+      <main>
+        <section class="hero">
+          <div>
+            <span class="badge">AI content generator SaaS</span>
+            <h1>IvoMarket AI</h1>
+            <p class="lead">
+              A premium SaaS app for creators, marketers, PLR sellers and digital product brands to generate hooks,
+              ads, scripts, captions, landing pages, product ideas and sales copy.
+            </p>
+            <div class="actions">
+              <a class="btn primary" href="https://github.com/iliasspro32/saas">Open repository</a>
+              <a class="btn" href="#setup">Cloudflare instructions</a>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="screen">
+              <div class="bar"><strong>AI Generator</strong><span class="pill">Ready</span></div>
+              <div class="tools">
+                <div class="tool">Facebook Ads Copy</div>
+                <div class="tool">TikTok/Reels Scripts</div>
+                <div class="tool">Etsy Listing Generator</div>
+                <div class="tool">Lead Magnet Ideas</div>
+              </div>
+              <div class="output">
+                <strong>Output preview</strong><br />
+                Viral hooks, CTA variations, polished copy and platform-specific formatting.
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="grid">
+          <div class="card"><h3>Secure backend</h3><p>Next.js routes for AI, Stripe webhooks, billing portal and admin workflows.</p></div>
+          <div class="card"><h3>Supabase ready</h3><p>Auth, profiles, credits, generations, templates, payments and RLS policies.</p></div>
+          <div class="card"><h3>Cloudflare path</h3><p>Use OpenNext Workers for the full app, or this static fallback to prevent Pages 404.</p></div>
+        </section>
+        <section id="setup" class="panel" style="margin-bottom: 60px;">
+          <h2>Cloudflare setup</h2>
+          <p style="color: var(--muted); line-height: 1.7;">
+            If you deploy as normal Cloudflare Pages static, this fallback page opens. For the complete SaaS with login,
+            dashboard, AI generation and Stripe, deploy the repository with Cloudflare Workers/OpenNext and run
+            <strong>npm run deploy</strong>.
+          </p>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

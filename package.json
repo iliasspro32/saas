@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "pages:static": "node -e \"require('fs').mkdirSync('dist',{recursive:true}); require('fs').copyFileSync('index.html','dist/index.html'); require('fs').copyFileSync('_redirects','dist/_redirects')\"",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
