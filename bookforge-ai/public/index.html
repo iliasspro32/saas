@@ -31,6 +31,39 @@
           <a class="primary-button" href="dashboard.html">⚡ Generar mi primer libro</a>
           <a class="secondary-button" href="#demo">Ver proceso</a>
         </div>
+        <form class="quick-ebook-form" id="quickEbookForm">
+          <div>
+            <label for="quickTitle">Título del ebook</label>
+            <input id="quickTitle" name="titulo" required placeholder="Ej: Hábitos para emprendedores">
+          </div>
+          <div>
+            <label for="quickTopic">Tema</label>
+            <input id="quickTopic" name="tema" required placeholder="Describe la idea del libro">
+          </div>
+          <div class="quick-grid">
+            <select name="tipo" aria-label="Tipo de libro">
+              <option>Non-fiction</option>
+              <option>How-to</option>
+              <option>Workbook</option>
+              <option>Journal</option>
+              <option>Novela</option>
+            </select>
+            <select name="idioma" aria-label="Idioma">
+              <option>Español</option>
+              <option>Inglés</option>
+              <option>Portugués</option>
+              <option>Francés</option>
+            </select>
+            <select name="pages" aria-label="Páginas objetivo">
+              <option>50</option>
+              <option selected>100</option>
+              <option>150</option>
+              <option>200</option>
+              <option>300</option>
+            </select>
+          </div>
+          <button type="submit">Crear ebook completo</button>
+        </form>
         <div class="trust-row">
           <span>KDP ready</span>
           <span>Etsy ready</span>

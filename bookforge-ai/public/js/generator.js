@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindAuth();
   bindGenerator();
   bindExports();
+  hydrateDraftFromLanding();
   updateStatsFromForm();
   verifyMagicLink();
   loadUser();
@@ -130,6 +131,26 @@ function bindGenerator() {
   });
 
   document.getElementById("regenerateButton")?.addEventListener("click", regenerateFirstSection);
+}
+
+function hydrateDraftFromLanding() {
+  const saved = localStorage.getItem("bookforge_draft");
+  if (!saved) return;
+  const form = document.getElementById("bookForm");
+  if (!form) return;
+
+  try {
+    const draft = JSON.parse(saved);
+    for (const [name, value] of Object.entries(draft)) {
+      const field = form.elements[name];
+      if (field) field.value = value;
+    }
+    localStorage.removeItem("bookforge_draft");
+    setStatus(8, "Ebook preparado desde la landing", "Revisa los campos, entra con magic link y pulsa Generar Libro Ahora.");
+    document.getElementById("generator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch {
+    localStorage.removeItem("bookforge_draft");
+  }
 }
 
 function updateStatsFromForm() {

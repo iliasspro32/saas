@@ -157,6 +157,60 @@ h1, .section-heading h2, .pricing-strip h2 {
   margin-top: 30px;
 }
 
+.quick-ebook-form {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+  margin-top: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 24px 70px rgba(0,0,0,.2);
+}
+
+.quick-ebook-form label {
+  display: block;
+  margin-bottom: 7px;
+  color: #e4e4e7;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.quick-ebook-form input,
+.quick-ebook-form select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(10,10,15,.86);
+  color: #fff;
+  outline: none;
+  padding: 0 12px;
+}
+
+.quick-ebook-form input:focus,
+.quick-ebook-form select:focus {
+  border-color: var(--primary-2);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.2);
+}
+
+.quick-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.quick-ebook-form button {
+  min-height: 50px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #111827;
+  font-weight: 900;
+}
+
 .trust-row {
   display: flex;
   flex-wrap: wrap;
@@ -300,6 +354,7 @@ h1, .section-heading h2, .pricing-strip h2 {
 @media (min-width: 820px) {
   .nav { display: flex; }
   .hero { grid-template-columns: 1.1fr .9fr; }
+  .quick-grid { grid-template-columns: repeat(3, 1fr); }
   .feature-grid { grid-template-columns: repeat(3, 1fr); }
   .metrics { grid-template-columns: repeat(4, 1fr); }
   .price-cards { grid-template-columns: repeat(3, 1fr); }

@@ -1,4 +1,18 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const quickForm = document.getElementById("quickEbookForm");
+  quickForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const draft = Object.fromEntries(new FormData(quickForm).entries());
+    localStorage.setItem("bookforge_draft", JSON.stringify({
+      ...draft,
+      capitulos: Number(draft.pages) >= 150 ? "20" : "10",
+      plataforma: "KDP",
+      estilo: "Editorial premium",
+      coverMood: "portada premium para ebook comercial"
+    }));
+    location.href = "dashboard.html?start=ebook";
+  });
+
   document.querySelectorAll("[data-checkout]").forEach((button) => {
     button.addEventListener("click", async () => {
       const plan = button.dataset.checkout;
