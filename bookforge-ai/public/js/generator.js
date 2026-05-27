@@ -433,52 +433,76 @@ function renderCover(book) {
   const colors = cover.paleta?.length ? cover.paleta : ["#0a0a0f", "#6366f1", "#f59e0b"];
   const element = document.getElementById("coverPreview");
   if (!element) return;
-  element.style.background = `linear-gradient(145deg, ${colors[0]}, ${colors[1]} 62%, ${colors[2]})`;
+  element.style.setProperty("--cover-a", colors[0] || "#0a0a0f");
+  element.style.setProperty("--cover-b", colors[1] || "#6366f1");
+  element.style.setProperty("--cover-c", colors[2] || "#f59e0b");
   element.innerHTML = `
-    <strong>${escapeHtml(cover.titulo_portada || book.titulo)}</strong>
-    <div>
+    <div class="cover-band">${escapeHtml(book.plataforma || "KDP")} READY</div>
+    <div class="cover-title-block">
       <h2>${escapeHtml(cover.titulo_portada || book.titulo)}</h2>
       <p>${escapeHtml(cover.subtitulo_portada || book.subtitulo || "")}</p>
     </div>
-    <strong>${escapeHtml(cover.autor_portada || book.autor || "")}</strong>
+    <div class="cover-author">${escapeHtml(cover.autor_portada || book.autor || "")}</div>
   `;
 }
 
 function renderManuscript(book) {
   const chapters = (book.contenido || []).map((chapter) => `
-    <section class="chapter">
-      <h2>Capítulo ${chapter.capitulo}: ${escapeHtml(chapter.titulo)}</h2>
-      <p>${formatText(chapter.introduccion)}</p>
+    <section class="book-page chapter">
+      <span class="chapter-kicker">Capítulo ${chapter.capitulo}</span>
+      <h2>${escapeHtml(chapter.titulo)}</h2>
+      <p class="chapter-intro">${formatText(chapter.introduccion)}</p>
       ${(chapter.secciones || []).map((section) => `
         <h3>${escapeHtml(section.subtitulo)}</h3>
         <p>${formatText(section.contenido)}</p>
       `).join("")}
       <h3>Conclusión del capítulo</h3>
       <p>${formatText(chapter.conclusion)}</p>
-      <div class="metadata"><strong>Ejercicio:</strong><p>${formatText(chapter.ejercicio)}</p></div>
+      <div class="exercise-box"><strong>Ejercicio práctico</strong><p>${formatText(chapter.ejercicio)}</p></div>
     </section>
   `).join("");
 
   const html = `
     <div class="paper" id="bookPaper">
-      <h1>${escapeHtml(book.titulo)}</h1>
-      <p><strong>${escapeHtml(book.subtitulo || "")}</strong></p>
-      <p>${escapeHtml(book.autor || "")}</p>
-      <div class="metadata">
-        <p><strong>Descripción KDP:</strong> ${formatText(book.descripcion_kdp)}</p>
-        <p><strong>Categoría:</strong> ${escapeHtml(book.categoria_kdp || "")}</p>
-        <p><strong>Keywords:</strong> ${(book.keywords || []).map(escapeHtml).join(", ")}</p>
-        <p><strong>Páginas estimadas:</strong> ${escapeHtml(String(book.paginas_estimadas || ""))}</p>
-      </div>
-      <h2>Índice</h2>
-      <ol>${(book.indice || []).map((item) => `<li><strong>${escapeHtml(item.titulo)}</strong> - ${escapeHtml(item.descripcion || "")}</li>`).join("")}</ol>
+      <section class="book-page title-page">
+        <p class="book-label">${escapeHtml(book.tipo || "Ebook profesional")}</p>
+        <h1>${escapeHtml(book.titulo)}</h1>
+        <p class="subtitle">${escapeHtml(book.subtitulo || "")}</p>
+        <p class="byline">${escapeHtml(book.autor || "")}</p>
+      </section>
+
+      <section class="book-page copyright-page">
+        <h2>Información editorial</h2>
+        <div class="metadata-grid">
+          <div><strong>Plataforma</strong><span>${escapeHtml(book.plataforma || "")}</span></div>
+          <div><strong>Idioma</strong><span>${escapeHtml(book.idioma || "")}</span></div>
+          <div><strong>Categoría KDP</strong><span>${escapeHtml(book.categoria_kdp || "")}</span></div>
+          <div><strong>Páginas estimadas</strong><span>${escapeHtml(String(book.paginas_estimadas || ""))}</span></div>
+        </div>
+        <h3>Descripción KDP</h3>
+        <p>${formatText(book.descripcion_kdp)}</p>
+        <h3>Keywords</h3>
+        <p>${(book.keywords || []).map(escapeHtml).join(", ")}</p>
+      </section>
+
+      <section class="book-page toc-page">
+        <h2>Índice</h2>
+        <ol class="toc-list">${(book.indice || []).map((item) => `<li><span>Capítulo ${escapeHtml(String(item.capitulo))}</span><strong>${escapeHtml(item.titulo)}</strong><em>${escapeHtml(item.descripcion || "")}</em></li>`).join("")}</ol>
+      </section>
+
       ${chapters}
-      <h2>Recursos extra</h2>
-      ${(book.recursos_extra || []).map((item) => `<h3>${escapeHtml(item.titulo)}</h3><p>${formatText(item.contenido)}</p>`).join("")}
-      <h2>Conclusión final</h2>
-      <p>${formatText(book.conclusion_final)}</p>
-      <h2>Sobre el autor</h2>
-      <p>${formatText(book.sobre_el_autor)}</p>
+
+      <section class="book-page">
+        <h2>Recursos extra</h2>
+        ${(book.recursos_extra || []).map((item) => `<h3>${escapeHtml(item.titulo)}</h3><p>${formatText(item.contenido)}</p>`).join("")}
+      </section>
+
+      <section class="book-page">
+        <h2>Conclusión final</h2>
+        <p>${formatText(book.conclusion_final)}</p>
+        <h2>Sobre el autor</h2>
+        <p>${formatText(book.sobre_el_autor)}</p>
+      </section>
     </div>
   `;
   document.getElementById("bookPreview").innerHTML = html;
@@ -501,20 +525,30 @@ function normalizeBook(book, payload, owner) {
 function buildDemoBook(payload) {
   const title = payload.titulo || "Ebook de prueba";
   const chapters = Number(payload.capitulos || 10);
+  const topic = payload.tema || "crear y publicar un ebook profesional";
+  const chapterTitles = [
+    "La promesa central del libro",
+    "Comprender al lector ideal",
+    "Estructura editorial paso a paso",
+    "Contenido práctico y aplicable",
+    "Diseño, portada y experiencia de lectura",
+    "Publicación, precio y mejora continua"
+  ];
   const chapterItems = Array.from({ length: Math.min(chapters, 6) }, (_, index) => {
     const number = index + 1;
+    const chapterTitle = chapterTitles[index] || `Bloque editorial ${number}`;
     return {
       capitulo: number,
-      titulo: `Pilar ${number}: ${payload.tema ? String(payload.tema).split(" ").slice(0, 4).join(" ") : "desarrollo del tema"}`,
-      introduccion: `Este capítulo muestra cómo se estructuraría una sección profesional del libro "${title}". En una generación real con API, este bloque se expande con investigación, ejemplos, transiciones naturales, contexto humano y una voz editorial consistente. Para la prueba, BookForge crea contenido suficiente para validar portada, preview, historial y exportación sin obligarte a registrarte.`,
+      titulo: chapterTitle,
+      introduccion: `Este capítulo forma parte de una versión demo organizada del libro "${title}". Su objetivo es mostrar una estructura editorial limpia: entrada del capítulo, desarrollo por secciones, conclusión y ejercicio. En una generación real con Gemini, Claude, OpenAI u OpenRouter, cada bloque se expande con mayor profundidad, ejemplos específicos y una voz adaptada al lector. Aquí usamos contenido de prueba para que puedas revisar la presentación, la portada, el PDF y los formatos de exportación sin registrarte.`,
       secciones: [
         {
-          subtitulo: "Idea principal",
-          contenido: `La idea central se desarrolla con claridad, evitando frases genéricas y manteniendo un tono humano. El lector recibe una explicación ordenada, ejemplos prácticos y una progresión natural. Este texto demo confirma el flujo completo: formulario, generación, render del manuscrito, portada, PDF KDP, PDF Etsy, EPUB y DOCX. Al conectar Gemini u otra API, esta sección se reemplaza por contenido largo de 700 o más palabras por sección.`
+          subtitulo: "Objetivo de la sección",
+          contenido: `La sección abre con una idea concreta relacionada con ${topic}. Primero sitúa al lector, después explica por qué el tema importa y finalmente propone una acción sencilla. Esta progresión evita que el contenido parezca una lista desordenada. El libro debe sentirse como una guía construida por un editor: cada parte cumple una función y prepara la siguiente. En modo API, este párrafo se convierte en una sección larga con ejemplos, matices, casos de uso y recomendaciones específicas.`
         },
         {
           subtitulo: "Aplicación práctica",
-          contenido: `Una buena obra publicable no solo informa: guía al lector hacia una transformación concreta. Por eso cada capítulo incluye acciones, reflexión y una conclusión útil. Esta demo está pensada para probar el producto sin coste, mientras el modo API permite generar libros completos con muchas más páginas e idiomas.`
+          contenido: `Una buena obra publicable no solo informa: guía al lector hacia una transformación concreta. Por eso cada capítulo incluye una aplicación práctica y una conclusión breve. Esta demo permite comprobar que el manuscrito queda ordenado, que el índice es legible, que la portada tiene diseño visible y que las exportaciones funcionan. Cuando conectas una API real, BookForge genera contenido extenso para libros de 50, 100, 200 o 300 páginas en distintos idiomas.`
         }
       ],
       conclusion: "El capítulo termina conectando la teoría con una acción concreta para que el lector avance sin sentirse perdido.",
@@ -537,12 +571,12 @@ function buildDemoBook(payload) {
       subtitulo_portada: "Guía completa para transformar ideas en un libro publicable",
       autor_portada: payload.autor || "BookForge AI Studio",
       concepto: "Portada premium con composición editorial, alto contraste y foco comercial.",
-      paleta: ["#0a0a0f", "#6366f1", "#f59e0b"],
+      paleta: ["#111827", "#4f46e5", "#f59e0b"],
       tipografia: "Playfair Display para título, Inter para datos secundarios",
       prompt_imagen: `Portada editorial premium para un ebook titulado ${title}, estilo ${payload.estilo || "elegante"}, sin texto incrustado`,
       texto_contraportada: "Un libro claro, práctico y listo para convertir una idea en un producto digital publicable."
     },
-    indice: chapterItems.map((chapter) => ({ capitulo: chapter.capitulo, titulo: chapter.titulo, descripcion: "Capítulo estructurado para desarrollar el tema con enfoque práctico." })),
+    indice: chapterItems.map((chapter) => ({ capitulo: chapter.capitulo, titulo: chapter.titulo, descripcion: "Capítulo estructurado con introducción, desarrollo, conclusión y ejercicio." })),
     contenido: chapterItems,
     recursos_extra: [{ titulo: "Checklist de publicación", contenido: "Revisa título, portada, descripción, keywords, categoría, formato PDF, enlaces y precio antes de publicar." }],
     conclusion_final: "Esta conclusión demo valida el cierre editorial del libro. Con una API configurada, BookForge genera una conclusión más extensa, humana y adaptada al idioma, plataforma y lector objetivo.",

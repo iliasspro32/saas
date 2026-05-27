@@ -307,12 +307,48 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 .export-actions button { background: rgba(255,255,255,.08); border: 1px solid var(--line); }
 
 .cover-preview {
+  --cover-a: #111827;
+  --cover-b: #4f46e5;
+  --cover-c: #f59e0b;
   min-height: 520px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 38px;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--cover-c) 72%, transparent), transparent 18rem),
+    linear-gradient(145deg, var(--cover-a), var(--cover-b) 64%, #1f2937);
+  color: #fff;
+  position: relative;
+}
+
+.cover-preview::before {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border: 1px solid rgba(255,255,255,.22);
+  pointer-events: none;
+}
+
+.cover-band,
+.cover-author {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: rgba(10,10,15,.35);
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.cover-title-block {
+  position: relative;
+  z-index: 1;
 }
 
 .cover-preview h2 {
@@ -338,6 +374,119 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
   line-height: 1.75;
 }
 
+.book-page {
+  min-height: 900px;
+  margin: 0 auto 28px;
+  padding: 58px;
+  background: #fffdf8;
+  border: 1px solid #e7dccb;
+  box-shadow: 0 16px 50px rgba(23, 23, 23, .08);
+  page-break-after: always;
+}
+
+.title-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.title-page .book-label {
+  color: #8a6b2d;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.title-page .subtitle {
+  max-width: 620px;
+  margin: 20px auto 0;
+  color: #574d42;
+  font-size: 22px;
+}
+
+.title-page .byline {
+  margin-top: 90px;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.chapter-kicker {
+  display: block;
+  color: #8a6b2d;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.chapter-intro {
+  border-left: 3px solid #f59e0b;
+  padding-left: 18px;
+  color: #3f3429;
+  font-size: 18px;
+}
+
+.metadata-grid {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0;
+}
+
+.metadata-grid div,
+.exercise-box {
+  border: 1px solid #ddd2c2;
+  border-radius: 8px;
+  background: #fff7e8;
+  padding: 16px;
+}
+
+.metadata-grid strong,
+.metadata-grid span {
+  display: block;
+}
+
+.metadata-grid strong {
+  color: #8a6b2d;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.toc-list {
+  display: grid;
+  gap: 14px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.toc-list li {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid #e7dccb;
+  padding-bottom: 14px;
+}
+
+.toc-list span {
+  color: #8a6b2d;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.toc-list em {
+  color: #675c4f;
+  font-style: normal;
+}
+
 .book-preview h1,
 .book-preview h2,
 .book-preview h3 {
@@ -346,7 +495,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 }
 
 .book-preview h1 { font-size: 44px; line-height: 1; }
-.book-preview h2 { margin-top: 36px; font-size: 30px; }
+.book-preview h2 { margin-top: 12px; font-size: 34px; line-height: 1.08; }
 .book-preview h3 { margin-top: 24px; font-size: 22px; }
 .book-preview p { font-size: 17px; }
 .book-preview .metadata { border: 1px solid #ddd2c2; padding: 18px; background: #fffaf1; }
@@ -409,6 +558,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 
 @media (min-width: 760px) {
   .field-grid { grid-template-columns: repeat(2, 1fr); }
+  .metadata-grid { grid-template-columns: repeat(2, 1fr); }
   .api-config-form { grid-template-columns: 180px 1fr 1fr 140px; align-items: end; }
   .api-actions { grid-column: 1 / -1; }
   .preview-toolbar { grid-template-columns: 1fr auto; align-items: center; }
