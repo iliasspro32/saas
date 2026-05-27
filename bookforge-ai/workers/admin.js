@@ -30,6 +30,10 @@ async function getConfig(env) {
 }
 
 async function saveConfig(request, env) {
+  if (!env.BOOKFORGE_KV) {
+    throw httpError("No puedo guardar: falta la vinculacion KV con nombre exacto BOOKFORGE_KV en Cloudflare Pages.", 500);
+  }
+
   const incoming = await request.json().catch(() => ({}));
   const current = await readConfig(env);
   const next = {

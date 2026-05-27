@@ -193,6 +193,7 @@
             <div class="actions">
               <button class="primary" id="saveToken" type="button">Entrar al admin</button>
               <button id="refreshStatus" type="button">Actualizar estado</button>
+              <button id="diagnoseAdmin" type="button">Diagnóstico</button>
             </div>
             <pre id="output">Esperando token admin...</pre>
           </div>
@@ -310,6 +311,27 @@
         write(data);
       }
 
+      async function diagnoseAdmin() {
+        const checks = [];
+        async function check(name, run) {
+          try {
+            const data = await run();
+            checks.push({ name, ok: true, data });
+          } catch (error) {
+            checks.push({ name, ok: false, error: error.message });
+          }
+        }
+
+        await check("Endpoint /api/admin/status", () => adminFetch("/api/admin/status"));
+        await check("Endpoint /api/admin/config", () => adminFetch("/api/admin/config"));
+        write({
+          message: "Si BOOKFORGE_KV sale false o Pendiente, el admin abre pero no puede guardar.",
+          currentUrl: location.href,
+          tokenPresent: Boolean(token()),
+          checks
+        });
+      }
+
       $("#saveToken").addEventListener("click", async () => {
         localStorage.setItem("bookforge_admin_token", token());
         await refreshStatus().catch((error) => write(error.message));
@@ -323,6 +345,7 @@
       });
 
       $("#refreshStatus").addEventListener("click", () => refreshStatus().catch((error) => write(error.message)));
+      $("#diagnoseAdmin").addEventListener("click", () => diagnoseAdmin());
 
       $("#loadConfig").addEventListener("click", async () => {
         try {
