@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
       estilo: "Editorial premium",
       coverMood: "portada premium para ebook comercial"
     }));
-    location.href = "dashboard.html?start=ebook";
+    location.href = "index.html";
   });
 
   document.querySelectorAll("[data-checkout]").forEach((button) => {
@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const plan = button.dataset.checkout;
       const token = localStorage.getItem("bookforge_session");
       if (!token) {
-        location.href = "dashboard.html";
+        location.href = "index.html";
         return;
       }
       try {
