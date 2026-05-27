@@ -5,14 +5,16 @@ const corsHeaders = {
 };
 
 const CONFIG_KEY = "admin:config";
+const ADMIN_AUTH_KEY = "admin:auth";
 const SECRET_FIELDS = ["geminiApiKey", "anthropicApiKey", "stripeSecretKey", "stripeWebhookSecret", "resendApiKey"];
 
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return json({}, 204);
     try {
-      requireAdmin(request, env);
       const url = new URL(request.url);
+      if (request.method === "POST" && url.pathname.includes("setup")) return await setupAdmin(request, env);
+      await requireAdmin(request, env);
       if (request.method === "GET" && url.pathname.includes("config")) return await getConfig(env);
       if (request.method === "POST" && url.pathname.includes("config")) return await saveConfig(request, env);
       if (request.method === "GET" && url.pathname.includes("status")) return await status(env);
@@ -23,6 +25,28 @@ export default {
     }
   }
 };
+
+async function setupAdmin(request, env) {
+  if (!env.BOOKFORGE_KV) {
+    throw httpError("Falta la vinculacion KV con nombre exacto BOOKFORGE_KV.", 500);
+  }
+
+  const existing = await env.BOOKFORGE_KV.get(ADMIN_AUTH_KEY, "json");
+  if (env.ADMIN_TOKEN || existing?.hash) {
+    throw httpError("El admin ya esta configurado. Entra con tu token actual.", 409);
+  }
+
+  const { token } = await request.json().catch(() => ({}));
+  const cleanToken = String(token || "").trim();
+  if (cleanToken.length < 8) throw httpError("La clave admin debe tener minimo 8 caracteres.", 400);
+
+  await env.BOOKFORGE_KV.put(ADMIN_AUTH_KEY, JSON.stringify({
+    hash: await sha256(cleanToken),
+    createdAt: new Date().toISOString()
+  }));
+
+  return json({ ok: true, message: "Admin creado. Ya puedes entrar con esa clave." });
+}
 
 async function getConfig(env) {
   const config = await readConfig(env);
@@ -59,10 +83,12 @@ async function saveConfig(request, env) {
 
 async function status(env) {
   const config = await readConfig(env);
+  const hasStoredAdmin = Boolean((await env.BOOKFORGE_KV?.get(ADMIN_AUTH_KEY, "json"))?.hash);
   return json({
     ok: true,
     kvConfigured: Boolean(env.BOOKFORGE_KV),
-    adminProtected: Boolean(env.ADMIN_TOKEN),
+    adminProtected: Boolean(env.ADMIN_TOKEN || hasStoredAdmin),
+    needsSetup: !env.ADMIN_TOKEN && !hasStoredAdmin,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
     geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY || config.stripeSecretKey),
@@ -104,11 +130,19 @@ function maskSecrets(config) {
   return masked;
 }
 
-function requireAdmin(request, env) {
-  const expected = env.ADMIN_TOKEN;
-  if (!expected) throw httpError("Missing environment variable: ADMIN_TOKEN", 500);
+async function requireAdmin(request, env) {
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token || token !== expected) throw httpError("Admin no autorizado", 401);
+  if (!token) throw httpError("Admin no autorizado", 401);
+  if (env.ADMIN_TOKEN && token === env.ADMIN_TOKEN) return;
+
+  const stored = await env.BOOKFORGE_KV?.get(ADMIN_AUTH_KEY, "json");
+  if (stored?.hash && await sha256(token) === stored.hash) return;
+
+  if (!env.ADMIN_TOKEN && !stored?.hash) {
+    throw httpError("Admin sin configurar. Crea una clave desde el boton Primer acceso.", 428);
+  }
+
+  throw httpError("Admin no autorizado", 401);
 }
 
 function clean(value, fallback) {
@@ -119,6 +153,11 @@ function httpError(message, status = 500) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+async function sha256(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function json(data, status = 200) {

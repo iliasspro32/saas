@@ -192,6 +192,7 @@
             </label>
             <div class="actions">
               <button class="primary" id="saveToken" type="button">Entrar al admin</button>
+              <button id="setupAdmin" type="button">Primer acceso</button>
               <button id="refreshStatus" type="button">Actualizar estado</button>
               <button id="diagnoseAdmin" type="button">Diagnóstico</button>
             </div>
@@ -282,6 +283,19 @@
         return data;
       }
 
+      async function publicFetch(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+          }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Error");
+        return data;
+      }
+
       function renderStatus(data = {}) {
         const items = [
           ["Admin protegido", data.adminProtected],
@@ -335,6 +349,21 @@
       $("#saveToken").addEventListener("click", async () => {
         localStorage.setItem("bookforge_admin_token", token());
         await refreshStatus().catch((error) => write(error.message));
+      });
+
+      $("#setupAdmin").addEventListener("click", async () => {
+        try {
+          if (!token()) throw new Error("Escribe una clave admin primero.");
+          const data = await publicFetch("/api/admin/setup", {
+            method: "POST",
+            body: JSON.stringify({ token: token() })
+          });
+          localStorage.setItem("bookforge_admin_token", token());
+          write(data);
+          await refreshStatus();
+        } catch (error) {
+          write(error.message);
+        }
       });
 
       $("#clearToken").addEventListener("click", () => {
