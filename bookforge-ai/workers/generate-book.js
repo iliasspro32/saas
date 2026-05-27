@@ -23,9 +23,14 @@ export default {
 };
 
 async function generateBook(request, env) {
+  const input = await readJson(request);
+
+  if (input.topic) {
+    return await generateStudioBook(input, env);
+  }
+
   assertEnv(env, ["ANTHROPIC_API_KEY"]);
   const user = await requireSession(request, env);
-  const input = await readJson(request);
   const clean = validateInput(input);
   const plan = await getPlan(env, user.email);
   const bookCount = Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0");
@@ -46,6 +51,58 @@ async function generateBook(request, env) {
   await addToIndex(env, user.email, id, completed);
 
   return json({ id, book: completed });
+}
+
+async function generateStudioBook(input, env) {
+  assertEnv(env, ["GEMINI_API_KEY"]);
+  const chaptersCount = Number(input.chaptersCount || 4);
+  const language = String(input.language || "Español");
+  const prompt = `Crea un libro profesional completo en JSON válido.
+Tema: ${input.topic}
+Género: ${input.genre || "No ficción"}
+Audiencia: ${input.audience || "Lectores generales"}
+Tono: ${input.tone || "Profesional y práctico"}
+Capítulos: ${chaptersCount}
+Idioma: ${language}
+Autor: ${input.author || "Autor IA"}
+Páginas objetivo: ${input.targetPages || 20}
+Plataforma: ${input.targetPlatform || "kdp"}
+
+Reglas:
+- Escribe todo en el idioma solicitado.
+- Capítulos ordenados, coherentes y sin relleno.
+- Cada capítulo debe tener varios párrafos.
+- No incluyas texto fuera del JSON.
+
+Devuelve exactamente:
+{
+  "title": "string",
+  "subtitle": "string",
+  "genre": "string",
+  "author": "string",
+  "language": "string",
+  "introduction": "string",
+  "tableOfContents": ["string"],
+  "chapters": [{"number": 1, "title": "string", "content": "string"}],
+  "conclusion": "string"
+}`;
+
+  const aiText = await callGemini(env, prompt);
+  const parsed = parseClaudeJson(aiText);
+  const id = "bf-" + crypto.randomUUID().slice(0, 9);
+  const book = {
+    ...parsed,
+    id,
+    targetPages: Number(input.targetPages || 20),
+    targetPlatform: input.targetPlatform || "kdp",
+    createdAt: new Date().toISOString()
+  };
+
+  if (env.BOOKFORGE_KV) {
+    await env.BOOKFORGE_KV.put(`studio:${id}`, JSON.stringify(book));
+  }
+
+  return json({ success: true, book });
 }
 
 async function regenerateSection(request, env) {
@@ -216,6 +273,26 @@ async function callClaude(env, prompt, pages, temperature = 0.7) {
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new Error(data?.error?.message || "Claude API request failed");
   return data?.content?.map((part) => part.text || "").join("").trim();
+}
+
+async function callGemini(env, prompt) {
+  const model = env.GEMINI_MODEL || "gemini-2.0-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.72,
+        maxOutputTokens: Number(env.GEMINI_MAX_TOKENS || "12000"),
+        responseMimeType: "application/json"
+      }
+    })
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error?.message || "Gemini API request failed");
+  return data?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
 }
 
 function parseClaudeJson(text) {
