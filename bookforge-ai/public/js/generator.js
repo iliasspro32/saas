@@ -1,0 +1,707 @@
+const API = {
+  auth: "/api/auth",
+  generate: "/api/generate-book",
+  payments: "/api/payments"
+};
+
+const state = {
+  token: localStorage.getItem("bookforge_session") || "",
+  demoMode: localStorage.getItem("bookforge_demo_mode") === "true",
+  apiConfig: JSON.parse(localStorage.getItem("bookforge_api_config") || "null"),
+  user: null,
+  book: null,
+  bookId: null,
+  progressTimer: null
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  bindAuth();
+  bindApiConfig();
+  bindGenerator();
+  bindExports();
+  hydrateDraftFromLanding();
+  updateStatsFromForm();
+  verifyMagicLink();
+  loadUser();
+  loadHistory();
+});
+
+function bindAuth() {
+  const magicButton = document.getElementById("magicButton");
+  const emailInput = document.getElementById("emailInput");
+  const logoutButton = document.getElementById("logoutButton");
+  const billingPortal = document.getElementById("billingPortal");
+  const demoModeButton = document.getElementById("demoModeButton");
+
+  magicButton?.addEventListener("click", async () => {
+    try {
+      magicButton.disabled = true;
+      magicButton.textContent = "Enviando...";
+      const data = await apiFetch(`${API.auth}/request-link`, { method: "POST", body: { email: emailInput.value } }, false);
+      if (data.magicLink) {
+        await navigator.clipboard?.writeText(data.magicLink).catch(() => {});
+        toast("Magic link creado y copiado. Abre el enlace para entrar.");
+      } else {
+        toast(data.message || "Revisa tu email.");
+      }
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      magicButton.disabled = false;
+      magicButton.textContent = "Enviar magic link";
+    }
+  });
+
+  logoutButton?.addEventListener("click", async () => {
+    await apiFetch(`${API.auth}/logout`, { method: "POST", body: {} }).catch(() => {});
+    localStorage.removeItem("bookforge_session");
+    localStorage.removeItem("bookforge_demo_mode");
+    state.token = "";
+    state.demoMode = false;
+    state.user = null;
+    renderAuth();
+  });
+
+  demoModeButton?.addEventListener("click", () => {
+    state.demoMode = true;
+    state.user = { email: "modo-prueba@bookforge.local", plan: state.apiConfig?.apiKey ? "api-test" : "demo" };
+    localStorage.setItem("bookforge_demo_mode", "true");
+    renderAuth();
+    toast("Modo prueba activado. Puedes generar sin registrarte.");
+  });
+
+  billingPortal?.addEventListener("click", async () => {
+    try {
+      const data = await apiFetch(`${API.payments}/portal`, { method: "POST", body: {} });
+      location.href = data.url;
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+}
+
+function bindApiConfig() {
+  const form = document.getElementById("apiConfigForm");
+  const clearButton = document.getElementById("clearApiConfig");
+  hydrateApiConfigForm();
+  renderApiStatus();
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const config = Object.fromEntries(new FormData(form).entries());
+    state.apiConfig = {
+      provider: config.provider || "gemini",
+      model: config.model || "gemini-2.0-flash",
+      apiKey: config.apiKey || "",
+      maxTokens: Number(config.maxTokens || 12000)
+    };
+    localStorage.setItem("bookforge_api_config", JSON.stringify(state.apiConfig));
+    state.demoMode = true;
+    localStorage.setItem("bookforge_demo_mode", "true");
+    renderAuth();
+    renderApiStatus();
+    toast("API guardada para pruebas locales.");
+  });
+
+  clearButton?.addEventListener("click", () => {
+    state.apiConfig = null;
+    localStorage.removeItem("bookforge_api_config");
+    hydrateApiConfigForm();
+    renderApiStatus();
+    toast("API local borrada. Queda activo el demo sin coste.");
+  });
+}
+
+function hydrateApiConfigForm() {
+  const form = document.getElementById("apiConfigForm");
+  if (!form) return;
+  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.0-flash", apiKey: "", maxTokens: 12000 };
+  form.elements.provider.value = config.provider;
+  form.elements.model.value = config.model;
+  form.elements.apiKey.value = config.apiKey || "";
+  form.elements.maxTokens.value = config.maxTokens || 12000;
+}
+
+function renderApiStatus() {
+  const status = document.getElementById("apiStatus");
+  if (!status) return;
+  if (state.apiConfig?.apiKey) {
+    status.textContent = `Modo actual: pruebas sin registro usando ${state.apiConfig.provider} · ${state.apiConfig.model}.`;
+  } else {
+    status.textContent = "Modo actual: demo local sin API. Genera un libro de muestra para probar preview y exportaciones.";
+  }
+}
+
+async function verifyMagicLink() {
+  const params = new URLSearchParams(location.search);
+  const magic = params.get("magic");
+  if (!magic) return;
+  try {
+    const data = await apiFetch(`${API.auth}/verify`, { method: "POST", body: { token: magic } }, false);
+    state.token = data.token;
+    state.user = data.user;
+    localStorage.setItem("bookforge_session", data.token);
+    history.replaceState({}, "", "dashboard.html");
+    toast("Sesión iniciada.");
+    renderAuth();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function loadUser() {
+  if (!state.token) {
+    if (state.demoMode) state.user = { email: "modo-prueba@bookforge.local", plan: state.apiConfig?.apiKey ? "api-test" : "demo" };
+    return renderAuth();
+  }
+  try {
+    const data = await apiFetch(`${API.auth}/me`);
+    state.user = data.user;
+  } catch {
+    localStorage.removeItem("bookforge_session");
+    state.token = "";
+  }
+  renderAuth();
+}
+
+function renderAuth() {
+  const authBox = document.getElementById("authBox");
+  const userBox = document.getElementById("userBox");
+  const userEmail = document.getElementById("userEmail");
+  const userPlan = document.getElementById("userPlan");
+  authBox?.classList.toggle("hidden", Boolean(state.user));
+  userBox?.classList.toggle("hidden", !state.user);
+  if (userEmail) userEmail.textContent = state.user?.email || "";
+  if (userPlan) userPlan.textContent = (state.user?.plan || "Free").toUpperCase();
+}
+
+function bindGenerator() {
+  const form = document.getElementById("bookForm");
+  form?.addEventListener("change", updateStatsFromForm);
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = document.getElementById("generateButton");
+    const payload = Object.fromEntries(new FormData(form).entries());
+
+    try {
+      startLoading(button);
+      const data = await generateBook(payload);
+      state.book = data.book;
+      state.bookId = data.id;
+      renderBook(data.book);
+      await loadHistory();
+      toast("Libro completo generado.");
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      stopLoading(button);
+    }
+  });
+
+  document.getElementById("regenerateButton")?.addEventListener("click", regenerateFirstSection);
+}
+
+async function generateBook(payload) {
+  if (state.apiConfig?.apiKey) {
+    const book = await generateWithConfiguredApi(payload);
+    const id = `local-${Date.now()}`;
+    saveLocalBook(id, book);
+    return { id, book };
+  }
+
+  if (state.token) {
+    return apiFetch(API.generate, { method: "POST", body: payload });
+  }
+
+  state.demoMode = true;
+  localStorage.setItem("bookforge_demo_mode", "true");
+  const book = buildDemoBook(payload);
+  const id = `demo-${Date.now()}`;
+  saveLocalBook(id, book);
+  return { id, book };
+}
+
+function hydrateDraftFromLanding() {
+  const saved = localStorage.getItem("bookforge_draft");
+  if (!saved) return;
+  const form = document.getElementById("bookForm");
+  if (!form) return;
+
+  try {
+    const draft = JSON.parse(saved);
+    for (const [name, value] of Object.entries(draft)) {
+      const field = form.elements[name];
+      if (field) field.value = value;
+    }
+    localStorage.removeItem("bookforge_draft");
+    setStatus(8, "Ebook preparado desde la landing", "Revisa los campos, entra con magic link y pulsa Generar Libro Ahora.");
+    document.getElementById("generator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch {
+    localStorage.removeItem("bookforge_draft");
+  }
+}
+
+function updateStatsFromForm() {
+  const form = document.getElementById("bookForm");
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form).entries());
+  setText("statPages", data.pages || "100");
+  setText("statLang", shortLang(data.idioma || "Español"));
+  setText("statFormat", data.plataforma || "KDP");
+}
+
+async function generateWithConfiguredApi(payload) {
+  const config = state.apiConfig;
+  const prompt = buildApiPrompt(payload);
+  let text;
+
+  if (config.provider === "gemini") {
+    text = await callGemini(config, prompt);
+  } else if (config.provider === "openrouter") {
+    text = await callOpenAiCompatible("https://openrouter.ai/api/v1/chat/completions", config, prompt);
+  } else if (config.provider === "openai") {
+    text = await callOpenAiCompatible("https://api.openai.com/v1/chat/completions", config, prompt);
+  } else if (config.provider === "anthropic") {
+    text = await callAnthropic(config, prompt);
+  } else {
+    throw new Error("Proveedor no soportado.");
+  }
+
+  return normalizeBook(parseJsonText(text), payload, `api-${config.provider}`);
+}
+
+async function callGemini(config, prompt) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: config.maxTokens || 12000,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "Gemini API error");
+  return data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+}
+
+async function callOpenAiCompatible(endpoint, config, prompt) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+      "HTTP-Referer": location.origin,
+      "X-Title": "BookForge AI"
+    },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0.7,
+      max_tokens: config.maxTokens || 12000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "Eres un autor y editor profesional. Responde solo JSON válido." },
+        { role: "user", content: prompt }
+      ]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "API error");
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function callAnthropic(config, prompt) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: config.maxTokens || 12000,
+      temperature: 0.7,
+      system: "Eres un autor y editor profesional. Responde solo JSON válido.",
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "Anthropic API error");
+  return data.content?.map((part) => part.text || "").join("") || "";
+}
+
+function buildApiPrompt(payload) {
+  const pages = Number(payload.pages || 100);
+  const words = Math.max(9000, pages * 220);
+  return `Crea un libro profesional completo y humano, revisado como editor, listo para publicar.
+Título: ${payload.titulo}
+Autor: ${payload.autor || "BookForge AI Studio"}
+Tema: ${payload.tema}
+Tipo: ${payload.tipo}
+Capítulos: ${payload.capitulos}
+Idioma: ${payload.idioma}
+Plataforma: ${payload.plataforma}
+Estilo: ${payload.estilo}
+Páginas objetivo: ${pages}
+Extensión objetivo: ${words}+ palabras
+Público objetivo: ${payload.publico || "lectores interesados en el tema"}
+Portada: ${payload.coverMood || "portada comercial premium"}
+
+Devuelve SOLO JSON válido con estas claves:
+{
+  "titulo": "string",
+  "subtitulo": "string",
+  "autor": "string",
+  "idioma": "string",
+  "plataforma": "string",
+  "tipo": "string",
+  "descripcion_kdp": "200 palabras",
+  "keywords": ["7 keywords"],
+  "categoria_kdp": "string",
+  "portada": {
+    "titulo_portada": "string",
+    "subtitulo_portada": "string",
+    "autor_portada": "string",
+    "concepto": "string",
+    "paleta": ["#0a0a0f", "#6366f1", "#f59e0b"],
+    "tipografia": "string",
+    "prompt_imagen": "string",
+    "texto_contraportada": "string"
+  },
+  "indice": [{"capitulo": 1, "titulo": "string", "descripcion": "string"}],
+  "contenido": [{"capitulo": 1, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "string", "contenido": "700+ palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
+  "recursos_extra": [{"titulo": "string", "contenido": "string"}],
+  "conclusion_final": "600+ palabras",
+  "sobre_el_autor": "string",
+  "paginas_estimadas": ${pages},
+  "control_calidad": {"estado": "revisado", "tono_humano": "alto", "listo_para_publicar": true}
+}`;
+}
+
+function parseJsonText(text) {
+  if (!text) throw new Error("La API no devolvió contenido.");
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("La API no devolvió JSON válido.");
+    return JSON.parse(match[0]);
+  }
+}
+
+async function regenerateFirstSection() {
+  if (!state.book || !state.bookId) return toast("Genera un libro primero.");
+  const first = state.book.contenido?.[0];
+  const section = first?.secciones?.[0];
+  if (!first || !section) return toast("No hay sección para regenerar.");
+  if (!state.token || state.bookId.startsWith("local") || state.bookId.startsWith("demo")) {
+    section.contenido = `${section.contenido}\n\nVersión regenerada: esta sección se ha reforzado con una explicación más clara, transiciones más humanas y una aplicación práctica adicional para que puedas probar el flujo sin registro.`;
+    saveLocalBook(state.bookId, state.book);
+    renderBook(state.book);
+    await loadHistory();
+    toast("Sección regenerada en modo prueba.");
+    return;
+  }
+  try {
+    const data = await apiFetch(`${API.generate}/regenerate-section`, {
+      method: "POST",
+      body: { bookId: state.bookId, chapter: first.capitulo, sectionTitle: section.subtitulo }
+    });
+    section.contenido = data.section.contenido;
+    renderBook(state.book);
+    toast("Primera sección regenerada.");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function renderBook(book) {
+  document.getElementById("preview")?.classList.remove("hidden");
+  setText("previewTitle", book.titulo);
+  renderCover(book);
+  renderManuscript(book);
+  document.getElementById("preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderCover(book) {
+  const cover = book.portada || {};
+  const colors = cover.paleta?.length ? cover.paleta : ["#0a0a0f", "#6366f1", "#f59e0b"];
+  const element = document.getElementById("coverPreview");
+  if (!element) return;
+  element.style.setProperty("--cover-a", colors[0] || "#0a0a0f");
+  element.style.setProperty("--cover-b", colors[1] || "#6366f1");
+  element.style.setProperty("--cover-c", colors[2] || "#f59e0b");
+  element.innerHTML = `
+    <div class="cover-band">${escapeHtml(book.plataforma || "KDP")} READY</div>
+    <div class="cover-title-block">
+      <h2>${escapeHtml(cover.titulo_portada || book.titulo)}</h2>
+      <p>${escapeHtml(cover.subtitulo_portada || book.subtitulo || "")}</p>
+    </div>
+    <div class="cover-author">${escapeHtml(cover.autor_portada || book.autor || "")}</div>
+  `;
+}
+
+function renderManuscript(book) {
+  const chapters = (book.contenido || []).map((chapter) => `
+    <section class="book-page chapter">
+      <span class="chapter-kicker">Capítulo ${chapter.capitulo}</span>
+      <h2>${escapeHtml(chapter.titulo)}</h2>
+      <p class="chapter-intro">${formatText(chapter.introduccion)}</p>
+      ${(chapter.secciones || []).map((section) => `
+        <h3>${escapeHtml(section.subtitulo)}</h3>
+        <p>${formatText(section.contenido)}</p>
+      `).join("")}
+      <h3>Conclusión del capítulo</h3>
+      <p>${formatText(chapter.conclusion)}</p>
+      <div class="exercise-box"><strong>Ejercicio práctico</strong><p>${formatText(chapter.ejercicio)}</p></div>
+    </section>
+  `).join("");
+
+  const html = `
+    <div class="paper" id="bookPaper">
+      <section class="book-page title-page">
+        <p class="book-label">${escapeHtml(book.tipo || "Ebook profesional")}</p>
+        <h1>${escapeHtml(book.titulo)}</h1>
+        <p class="subtitle">${escapeHtml(book.subtitulo || "")}</p>
+        <p class="byline">${escapeHtml(book.autor || "")}</p>
+      </section>
+
+      <section class="book-page copyright-page">
+        <h2>Información editorial</h2>
+        <div class="metadata-grid">
+          <div><strong>Plataforma</strong><span>${escapeHtml(book.plataforma || "")}</span></div>
+          <div><strong>Idioma</strong><span>${escapeHtml(book.idioma || "")}</span></div>
+          <div><strong>Categoría KDP</strong><span>${escapeHtml(book.categoria_kdp || "")}</span></div>
+          <div><strong>Páginas estimadas</strong><span>${escapeHtml(String(book.paginas_estimadas || ""))}</span></div>
+        </div>
+        <h3>Descripción KDP</h3>
+        <p>${formatText(book.descripcion_kdp)}</p>
+        <h3>Keywords</h3>
+        <p>${(book.keywords || []).map(escapeHtml).join(", ")}</p>
+      </section>
+
+      <section class="book-page toc-page">
+        <h2>Índice</h2>
+        <ol class="toc-list">${(book.indice || []).map((item) => `<li><span>Capítulo ${escapeHtml(String(item.capitulo))}</span><strong>${escapeHtml(item.titulo)}</strong><em>${escapeHtml(item.descripcion || "")}</em></li>`).join("")}</ol>
+      </section>
+
+      ${chapters}
+
+      <section class="book-page">
+        <h2>Recursos extra</h2>
+        ${(book.recursos_extra || []).map((item) => `<h3>${escapeHtml(item.titulo)}</h3><p>${formatText(item.contenido)}</p>`).join("")}
+      </section>
+
+      <section class="book-page">
+        <h2>Conclusión final</h2>
+        <p>${formatText(book.conclusion_final)}</p>
+        <h2>Sobre el autor</h2>
+        <p>${formatText(book.sobre_el_autor)}</p>
+      </section>
+    </div>
+  `;
+  document.getElementById("bookPreview").innerHTML = html;
+}
+
+function normalizeBook(book, payload, owner) {
+  return {
+    ...book,
+    titulo: book.titulo || payload.titulo,
+    autor: book.autor || payload.autor || "BookForge AI Studio",
+    idioma: book.idioma || payload.idioma,
+    plataforma: book.plataforma || payload.plataforma,
+    tipo: book.tipo || payload.tipo,
+    paginas_estimadas: Number(book.paginas_estimadas || payload.pages || 100),
+    owner,
+    created_at: new Date().toISOString()
+  };
+}
+
+function buildDemoBook(payload) {
+  const title = payload.titulo || "Ebook de prueba";
+  const chapters = Number(payload.capitulos || 10);
+  const topic = payload.tema || "crear y publicar un ebook profesional";
+  const chapterTitles = [
+    "La promesa central del libro",
+    "Comprender al lector ideal",
+    "Estructura editorial paso a paso",
+    "Contenido práctico y aplicable",
+    "Diseño, portada y experiencia de lectura",
+    "Publicación, precio y mejora continua"
+  ];
+  const chapterItems = Array.from({ length: Math.min(chapters, 6) }, (_, index) => {
+    const number = index + 1;
+    const chapterTitle = chapterTitles[index] || `Bloque editorial ${number}`;
+    return {
+      capitulo: number,
+      titulo: chapterTitle,
+      introduccion: `Este capítulo forma parte de una versión demo organizada del libro "${title}". Su objetivo es mostrar una estructura editorial limpia: entrada del capítulo, desarrollo por secciones, conclusión y ejercicio. En una generación real con Gemini, Claude, OpenAI u OpenRouter, cada bloque se expande con mayor profundidad, ejemplos específicos y una voz adaptada al lector. Aquí usamos contenido de prueba para que puedas revisar la presentación, la portada, el PDF y los formatos de exportación sin registrarte.`,
+      secciones: [
+        {
+          subtitulo: "Objetivo de la sección",
+          contenido: `La sección abre con una idea concreta relacionada con ${topic}. Primero sitúa al lector, después explica por qué el tema importa y finalmente propone una acción sencilla. Esta progresión evita que el contenido parezca una lista desordenada. El libro debe sentirse como una guía construida por un editor: cada parte cumple una función y prepara la siguiente. En modo API, este párrafo se convierte en una sección larga con ejemplos, matices, casos de uso y recomendaciones específicas.`
+        },
+        {
+          subtitulo: "Aplicación práctica",
+          contenido: `Una buena obra publicable no solo informa: guía al lector hacia una transformación concreta. Por eso cada capítulo incluye una aplicación práctica y una conclusión breve. Esta demo permite comprobar que el manuscrito queda ordenado, que el índice es legible, que la portada tiene diseño visible y que las exportaciones funcionan. Cuando conectas una API real, BookForge genera contenido extenso para libros de 50, 100, 200 o 300 páginas en distintos idiomas.`
+        }
+      ],
+      conclusion: "El capítulo termina conectando la teoría con una acción concreta para que el lector avance sin sentirse perdido.",
+      ejercicio: "Escribe tres ideas que puedas aplicar hoy y convierte una de ellas en una acción de 15 minutos."
+    };
+  });
+
+  return normalizeBook({
+    titulo: title,
+    subtitulo: "Una guía profesional creada con BookForge AI",
+    autor: payload.autor || "BookForge AI Studio",
+    idioma: payload.idioma || "Español",
+    plataforma: payload.plataforma || "KDP",
+    tipo: payload.tipo || "Non-fiction",
+    descripcion_kdp: `Descubre una guía práctica sobre ${payload.tema || "tu tema"} diseñada para lectores que buscan claridad, estructura y resultados aplicables. Esta versión demo permite validar el flujo de creación antes de conectar una API real.`,
+    keywords: ["ebook", "KDP", "guía práctica", "libro digital", "workbook", "publicación", "BookForge"],
+    categoria_kdp: "Business & Money / Personal Success",
+    portada: {
+      titulo_portada: title,
+      subtitulo_portada: "Guía completa para transformar ideas en un libro publicable",
+      autor_portada: payload.autor || "BookForge AI Studio",
+      concepto: "Portada premium con composición editorial, alto contraste y foco comercial.",
+      paleta: ["#111827", "#4f46e5", "#f59e0b"],
+      tipografia: "Playfair Display para título, Inter para datos secundarios",
+      prompt_imagen: `Portada editorial premium para un ebook titulado ${title}, estilo ${payload.estilo || "elegante"}, sin texto incrustado`,
+      texto_contraportada: "Un libro claro, práctico y listo para convertir una idea en un producto digital publicable."
+    },
+    indice: chapterItems.map((chapter) => ({ capitulo: chapter.capitulo, titulo: chapter.titulo, descripcion: "Capítulo estructurado con introducción, desarrollo, conclusión y ejercicio." })),
+    contenido: chapterItems,
+    recursos_extra: [{ titulo: "Checklist de publicación", contenido: "Revisa título, portada, descripción, keywords, categoría, formato PDF, enlaces y precio antes de publicar." }],
+    conclusion_final: "Esta conclusión demo valida el cierre editorial del libro. Con una API configurada, BookForge genera una conclusión más extensa, humana y adaptada al idioma, plataforma y lector objetivo.",
+    sobre_el_autor: "BookForge AI Studio ayuda a convertir ideas en libros digitales listos para publicar.",
+    paginas_estimadas: Number(payload.pages || 100),
+    control_calidad: { estado: "demo", tono_humano: "medio", listo_para_publicar: false }
+  }, payload, "demo-local");
+}
+
+function saveLocalBook(id, book) {
+  const books = JSON.parse(localStorage.getItem("bookforge_local_books") || "[]");
+  const next = [{ id, book }, ...books.filter((item) => item.id !== id)].slice(0, 25);
+  localStorage.setItem("bookforge_local_books", JSON.stringify(next));
+}
+
+async function loadHistory() {
+  const localBooks = JSON.parse(localStorage.getItem("bookforge_local_books") || "[]");
+  if (!state.token) {
+    renderHistoryItems(localBooks.map((item) => ({ id: item.id, ...item.book })));
+    return;
+  }
+  try {
+    const data = await apiFetch(API.generate);
+    renderHistoryItems([...(data.books || []), ...localBooks.map((item) => ({ id: item.id, ...item.book }))]);
+  } catch {
+    renderHistoryItems(localBooks.map((item) => ({ id: item.id, ...item.book })));
+  }
+}
+
+function renderHistoryItems(books) {
+  const list = document.getElementById("historyList");
+  if (!list) return;
+  list.innerHTML = books.length ? books.map((book) => `
+    <div class="history-item">
+      <strong>${escapeHtml(book.titulo)}</strong>
+      <span>${escapeHtml(book.idioma)} · ${escapeHtml(book.plataforma)} · ${escapeHtml(String(book.paginas_estimadas))} páginas</span>
+      <button data-book-id="${book.id}">${String(book.id).startsWith("local") || String(book.id).startsWith("demo") ? "Guardado local" : "Guardado en KV"}</button>
+    </div>
+  `).join("") : `<p>No hay libros todavía.</p>`;
+}
+
+function startLoading(button) {
+  button.disabled = true;
+  button.classList.add("loading");
+  button.textContent = "Forjando libro completo...";
+  let progress = 0;
+  setStatus(progress, "Creando estructura editorial", "Diseñando índice, portada, metadata y capítulos largos.");
+  clearInterval(state.progressTimer);
+  state.progressTimer = setInterval(() => {
+    progress = Math.min(92, progress + Math.ceil(Math.random() * 7));
+    const titles = progress > 78 ? "Revisión humana final" : progress > 55 ? "Corrigiendo estilo y errores" : progress > 30 ? "Redactando contenido largo" : "Preparando portada y KDP";
+    const text = progress > 55
+      ? "El editor IA está eliminando repeticiones, tono robótico, incoherencias y errores antes de guardar."
+      : "Claude está generando el manuscrito, portada y assets de publicación.";
+    setStatus(progress, titles, text);
+  }, 1400);
+}
+
+function stopLoading(button) {
+  clearInterval(state.progressTimer);
+  setStatus(100, "Libro revisado y generado", "El libro pasó por una revisión editorial antes de guardarse. Revisa el preview y exporta.");
+  button.disabled = false;
+  button.classList.remove("loading");
+  button.textContent = "⚡ Generar Libro Ahora";
+}
+
+function setStatus(progress, title, text) {
+  const ring = document.getElementById("progressRing");
+  if (ring) {
+    ring.textContent = `${progress}%`;
+    ring.style.background = `conic-gradient(var(--primary) ${progress * 3.6}deg, rgba(255,255,255,.08) 0deg)`;
+  }
+  setText("statusTitle", title);
+  setText("statusText", text);
+}
+
+function bindExports() {
+  document.querySelectorAll("[data-export]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!state.book) return toast("Genera un libro primero.");
+      const type = button.dataset.export;
+      if (type === "pdf") return window.BookForgeExport.pdfKdp(state.book);
+      if (type === "kdp") return window.BookForgeExport.pdfKdp(state.book);
+      if (type === "etsy") return window.BookForgeExport.pdfEtsy(state.book);
+      if (type === "epub") return window.BookForgeExport.epub(state.book);
+      if (type === "docx") return window.BookForgeExport.docx(state.book);
+    });
+  });
+}
+
+async function apiFetch(url, options = {}, auth = true) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
+  const response = await fetch(url, {
+    method: options.method || "GET",
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Error de conexión");
+  return data;
+}
+
+function toast(message) {
+  const element = document.getElementById("toast");
+  if (!element) return alert(message);
+  element.textContent = message;
+  element.classList.add("show");
+  clearTimeout(element.timer);
+  element.timer = setTimeout(() => element.classList.remove("show"), 4200);
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function shortLang(value) {
+  return { Español: "ES", Inglés: "EN", Portugués: "PT", Francés: "FR", Alemán: "DE", Italiano: "IT", Árabe: "AR", Holandés: "NL" }[value] || value.slice(0, 2).toUpperCase();
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" })[char]);
+}
+
+function formatText(value = "") {
+  return escapeHtml(value).replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
+}

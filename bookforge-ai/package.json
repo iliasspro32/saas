@@ -1,0 +1,16 @@
+{
+  "name": "bookforge-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vanilla HTML/CSS/JS SaaS for generating complete AI books with Cloudflare Workers, KV, Claude and Stripe.",
+  "scripts": {
+    "dev": "wrangler pages dev public --compatibility-date=2026-05-27",
+    "deploy:pages": "wrangler pages deploy public --project-name=bookforge-ai",
+    "deploy:generate": "wrangler deploy workers/generate-book.js --name bookforge-ai-generate",
+    "deploy:auth": "wrangler deploy workers/auth.js --name bookforge-ai-auth",
+    "deploy:payments": "wrangler deploy workers/payments.js --name bookforge-ai-payments"
+  },
+  "devDependencies": {
+    "wrangler": "^4.86.0"
+  }
+}

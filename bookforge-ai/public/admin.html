@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - BookForge AI</title>
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --panel: rgba(15, 23, 42, .72);
+        --panel-2: rgba(2, 6, 23, .84);
+        --line: rgba(255,255,255,.1);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --primary: #6366f1;
+        --accent: #f59e0b;
+        --ok: #22c55e;
+        --bad: #fb7185;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 14% 10%, rgba(99,102,241,.25), transparent 28rem),
+          radial-gradient(circle at 86% 18%, rgba(245,158,11,.14), transparent 24rem),
+          var(--bg);
+      }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      a { color: inherit; text-decoration: none; }
+      .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 40px; }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 0 22px;
+        backdrop-filter: blur(18px);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; font-weight: 900; }
+      .logo {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--primary), #4338ca);
+        box-shadow: 0 18px 50px rgba(99,102,241,.28);
+      }
+      .nav { display: flex; gap: 8px; flex-wrap: wrap; }
+      .nav a, .nav button, .primary {
+        min-height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 14px;
+        color: var(--text);
+        background: rgba(255,255,255,.05);
+        font-weight: 800;
+        font-size: 13px;
+      }
+      .primary { border-color: var(--primary); background: var(--primary); }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.05fr .95fr;
+        gap: 18px;
+        align-items: stretch;
+        margin-top: 10px;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0,0,0,.32);
+        padding: 22px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 950;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+      }
+      h1, h2, h3 { margin: 0; letter-spacing: 0; }
+      h1 {
+        max-width: 720px;
+        margin-top: 12px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(44px, 8vw, 88px);
+        line-height: .9;
+      }
+      h2 { font-size: 22px; }
+      h3 { font-size: 15px; }
+      p { color: var(--muted); line-height: 1.65; }
+      .status-grid, .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .status {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel-2);
+        padding: 16px;
+      }
+      .status strong { display: block; font-size: 13px; }
+      .status span { color: var(--muted); font-size: 12px; }
+      .dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        margin-right: 8px;
+        border-radius: 999px;
+        background: var(--bad);
+        box-shadow: 0 0 16px rgba(251,113,133,.45);
+      }
+      .dot.ok { background: var(--ok); box-shadow: 0 0 16px rgba(34,197,94,.45); }
+      form { display: grid; gap: 14px; margin-top: 18px; }
+      label { display: grid; gap: 7px; color: #cbd5e1; font-size: 12px; font-weight: 850; }
+      input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 12px;
+        outline: none;
+        color: var(--text);
+        background: rgba(2,6,23,.82);
+      }
+      input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.18); }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+      pre {
+        min-height: 160px;
+        margin: 16px 0 0;
+        padding: 14px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: #dbeafe;
+        background: #020617;
+        white-space: pre-wrap;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .notice {
+        margin-top: 18px;
+        border: 1px solid rgba(245,158,11,.28);
+        border-radius: 14px;
+        padding: 14px;
+        color: #fde68a;
+        background: rgba(245,158,11,.08);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      @media (max-width: 900px) {
+        .hero, .status-grid, .form-grid { grid-template-columns: 1fr; }
+        header { align-items: flex-start; flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <a class="brand" href="index.html"><span class="logo">B</span><span>BookForge AI Admin</span></a>
+        <div class="nav">
+          <a href="index.html">Studio</a>
+          <a href="pricing.html">Planes</a>
+          <button id="clearToken" type="button">Cerrar admin</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="panel">
+            <span class="eyebrow">Control central</span>
+            <h1>Conexiones, pagos y APIs desde un panel.</h1>
+            <p>Guarda configuración para pruebas, revisa si Gemini, Stripe, email y KV están activos, y prueba Gemini antes de generar libros reales.</p>
+            <div class="notice">Para producción lo más seguro es usar Cloudflare Secrets. Este panel también puede guardar claves en KV protegido por `ADMIN_TOKEN` para pruebas rápidas.</div>
+          </div>
+          <div class="panel">
+            <h2>Acceso admin</h2>
+            <p>Introduce el token que pusiste como secreto `ADMIN_TOKEN` en Cloudflare.</p>
+            <label>Admin token
+              <input id="adminToken" type="password" autocomplete="current-password" placeholder="Pega tu ADMIN_TOKEN">
+            </label>
+            <div class="actions">
+              <button class="primary" id="saveToken" type="button">Entrar al admin</button>
+              <button id="setupAdmin" type="button">Primer acceso</button>
+              <button id="refreshStatus" type="button">Actualizar estado</button>
+              <button id="diagnoseAdmin" type="button">Diagnóstico</button>
+            </div>
+            <pre id="output">Esperando token admin...</pre>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top:18px">
+          <h2>Estado de conexiones</h2>
+          <div class="status-grid" id="statusGrid"></div>
+        </section>
+
+        <section class="panel" style="margin-top:18px">
+          <h2>Configuración</h2>
+          <form id="configForm">
+            <div class="form-grid">
+              <label>APP URL
+                <input name="appUrl" placeholder="https://bookforge-ai.pages.dev">
+              </label>
+              <label>Gemini API Key
+                <input name="geminiApiKey" type="password" placeholder="AIza...">
+              </label>
+              <label>Gemini model
+                <input name="geminiModel" placeholder="gemini-2.0-flash">
+              </label>
+              <label>Gemini max tokens
+                <input name="geminiMaxTokens" placeholder="12000">
+              </label>
+              <label>Stripe secret key
+                <input name="stripeSecretKey" type="password" placeholder="sk_live_...">
+              </label>
+              <label>Stripe webhook secret
+                <input name="stripeWebhookSecret" type="password" placeholder="whsec_...">
+              </label>
+              <label>Stripe Pro price ID
+                <input name="stripeProPriceId" placeholder="price_...">
+              </label>
+              <label>Stripe Agency price ID
+                <input name="stripeAgencyPriceId" placeholder="price_...">
+              </label>
+              <label>Resend API key
+                <input name="resendApiKey" type="password" placeholder="re_...">
+              </label>
+              <label>Email from
+                <input name="emailFrom" placeholder="BookForge <hello@tudominio.com>">
+              </label>
+              <label>Anthropic API key opcional
+                <input name="anthropicApiKey" type="password" placeholder="sk-ant-...">
+              </label>
+            </div>
+            <div class="actions">
+              <button class="primary" type="submit">Guardar configuración</button>
+              <button id="loadConfig" type="button">Cargar configuración</button>
+              <button id="testGemini" type="button">Probar Gemini</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const $ = (query) => document.querySelector(query);
+      const API_BASE = "/api/pages-admin";
+      const output = $("#output");
+      const tokenInput = $("#adminToken");
+      const form = $("#configForm");
+      tokenInput.value = localStorage.getItem("bookforge_admin_token") || "";
+
+      function token() {
+        return tokenInput.value.trim();
+      }
+
+      function write(data) {
+        output.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      }
+
+      async function adminFetch(path, options = {}) {
+        if (!token()) throw new Error("Falta ADMIN_TOKEN");
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token()}`,
+            ...(options.headers || {})
+          }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Error admin");
+        return data;
+      }
+
+      async function publicFetch(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+          }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Error");
+        return data;
+      }
+
+      function renderStatus(data = {}) {
+        const items = [
+          ["Admin protegido", data.adminProtected],
+          ["Cloudflare KV", data.kvConfigured],
+          ["Gemini API", data.geminiConfigured],
+          ["Stripe secret", data.stripeConfigured],
+          ["Stripe prices", data.stripePricesConfigured],
+          ["Email magic link", data.emailConfigured]
+        ];
+        $("#statusGrid").innerHTML = items.map(([label, ok]) => `
+          <div class="status">
+            <strong><i class="dot ${ok ? "ok" : ""}"></i>${label}</strong>
+            <span>${ok ? "Configurado" : "Pendiente"}</span>
+          </div>
+        `).join("");
+      }
+
+      function fillConfig(config = {}) {
+        for (const [key, value] of Object.entries(config)) {
+          if (form.elements[key]) form.elements[key].value = value || "";
+        }
+      }
+
+      async function refreshStatus() {
+        const data = await adminFetch(`${API_BASE}/status`);
+        renderStatus(data);
+        write(data);
+      }
+
+      async function diagnoseAdmin() {
+        const checks = [];
+        async function check(name, run) {
+          try {
+            const data = await run();
+            checks.push({ name, ok: true, data });
+          } catch (error) {
+            checks.push({ name, ok: false, error: error.message });
+          }
+        }
+
+        await check("Endpoint /api/pages-admin/status", () => adminFetch(`${API_BASE}/status`));
+        await check("Endpoint /api/pages-admin/config", () => adminFetch(`${API_BASE}/config`));
+        write({
+          message: "Si BOOKFORGE_KV sale false o Pendiente, el admin abre pero no puede guardar.",
+          currentUrl: location.href,
+          tokenPresent: Boolean(token()),
+          checks
+        });
+      }
+
+      $("#saveToken").addEventListener("click", async () => {
+        localStorage.setItem("bookforge_admin_token", token());
+        await refreshStatus().catch((error) => write(error.message));
+      });
+
+      $("#setupAdmin").addEventListener("click", async () => {
+        try {
+          if (!token()) throw new Error("Escribe una clave admin primero.");
+          const data = await publicFetch(`${API_BASE}/setup`, {
+            method: "POST",
+            body: JSON.stringify({ token: token() })
+          });
+          localStorage.setItem("bookforge_admin_token", token());
+          write(data);
+          await refreshStatus();
+        } catch (error) {
+          write(error.message);
+        }
+      });
+
+      $("#clearToken").addEventListener("click", () => {
+        localStorage.removeItem("bookforge_admin_token");
+        tokenInput.value = "";
+        renderStatus();
+        write("Token admin eliminado de este navegador.");
+      });
+
+      $("#refreshStatus").addEventListener("click", () => refreshStatus().catch((error) => write(error.message)));
+      $("#diagnoseAdmin").addEventListener("click", () => diagnoseAdmin());
+
+      $("#loadConfig").addEventListener("click", async () => {
+        try {
+          const data = await adminFetch(`${API_BASE}/config`);
+          fillConfig(data.config);
+          write(data);
+        } catch (error) {
+          write(error.message);
+        }
+      });
+
+      $("#testGemini").addEventListener("click", async () => {
+        try {
+          write("Probando Gemini...");
+          write(await adminFetch(`${API_BASE}/test-gemini`, { method: "POST", body: "{}" }));
+        } catch (error) {
+          write(error.message);
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          const payload = Object.fromEntries(new FormData(form).entries());
+          write(await adminFetch(`${API_BASE}/config`, { method: "POST", body: JSON.stringify(payload) }));
+          await refreshStatus();
+        } catch (error) {
+          write(error.message);
+        }
+      });
+
+      renderStatus();
+      if (token()) refreshStatus().catch((error) => write(error.message));
+    </script>
+  </body>
+</html>
