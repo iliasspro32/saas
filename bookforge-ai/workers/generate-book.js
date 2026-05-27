@@ -111,7 +111,7 @@ function validateStudioInput(input) {
     throw httpError("Introduce una idea o tema para conectar con Gemini.", 400);
   }
 
-  const chaptersCount = Math.max(1, Math.min(40, Number(input.chaptersCount || 4)));
+  const chaptersCount = Math.max(1, Math.min(80, Number(input.chaptersCount || 4)));
   const targetPages = Math.max(10, Math.min(500, Number(input.targetPages || 20)));
   const language = String(input.language || "Español").slice(0, 80);
 
