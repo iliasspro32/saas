@@ -1,0 +1,53 @@
+name = "bookforge-ai-generate"
+main = "workers/generate-book.js"
+compatibility_date = "2026-05-27"
+pages_build_output_dir = "public"
+
+kv_namespaces = [
+  { binding = "BOOKFORGE_KV", id = "00000000000000000000000000000000", preview_id = "11111111111111111111111111111111" }
+]
+
+[vars]
+APP_URL = "https://bookforge-ai.pages.dev"
+ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+FREE_BOOK_LIMIT = "1"
+STRIPE_PRO_PRICE_ID = "price_1BookForgeProMonthly000000000"
+STRIPE_AGENCY_PRICE_ID = "price_1BookForgeAgencyMonthly000000"
+
+[env.production]
+name = "bookforge-ai-generate"
+routes = [
+  { pattern = "bookforge-ai.pages.dev/api/generate-book", custom_domain = false }
+]
+
+[[env.production.kv_namespaces]]
+binding = "BOOKFORGE_KV"
+id = "00000000000000000000000000000000"
+
+[env.auth]
+name = "bookforge-ai-auth"
+main = "workers/auth.js"
+compatibility_date = "2026-05-27"
+
+[[env.auth.kv_namespaces]]
+binding = "BOOKFORGE_KV"
+id = "00000000000000000000000000000000"
+
+[env.auth.vars]
+APP_URL = "https://bookforge-ai.pages.dev"
+MAGIC_LINK_TTL_SECONDS = "900"
+SESSION_TTL_SECONDS = "2592000"
+
+[env.payments]
+name = "bookforge-ai-payments"
+main = "workers/payments.js"
+compatibility_date = "2026-05-27"
+
+[[env.payments.kv_namespaces]]
+binding = "BOOKFORGE_KV"
+id = "00000000000000000000000000000000"
+
+[env.payments.vars]
+APP_URL = "https://bookforge-ai.pages.dev"
+STRIPE_PRO_PRICE_ID = "price_1BookForgeProMonthly000000000"
+STRIPE_AGENCY_PRICE_ID = "price_1BookForgeAgencyMonthly000000"
