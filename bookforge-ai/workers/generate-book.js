@@ -12,12 +12,14 @@ export default {
 
     try {
       const url = new URL(request.url);
+      if (request.method === "GET" && url.pathname.includes("health")) return health(env);
       if (request.method === "GET") return await listBooks(request, env);
       if (request.method === "POST" && url.pathname.includes("regenerate-section")) return await regenerateSection(request, env);
       if (request.method === "POST") return await generateBook(request, env);
       return json({ error: "Method not allowed" }, 405);
     } catch (error) {
-      return json({ error: error.message || "Unexpected server error" }, 500);
+      const status = Number(error.status || 500);
+      return json({ error: error.message || "Unexpected server error" }, status);
     }
   }
 };
@@ -55,23 +57,28 @@ async function generateBook(request, env) {
 
 async function generateStudioBook(input, env) {
   assertEnv(env, ["GEMINI_API_KEY"]);
-  const chaptersCount = Number(input.chaptersCount || 4);
-  const language = String(input.language || "Español");
+  const clean = validateStudioInput(input);
+  const chaptersCount = clean.chaptersCount;
+  const targetWords = Math.max(2500, clean.targetPages * 260);
+  const wordsPerChapter = Math.max(650, Math.ceil(targetWords / chaptersCount));
   const prompt = `Crea un libro profesional completo en JSON válido.
-Tema: ${input.topic}
-Género: ${input.genre || "No ficción"}
-Audiencia: ${input.audience || "Lectores generales"}
-Tono: ${input.tone || "Profesional y práctico"}
+Tema: ${clean.topic}
+Género: ${clean.genre}
+Audiencia: ${clean.audience}
+Tono: ${clean.tone}
 Capítulos: ${chaptersCount}
-Idioma: ${language}
-Autor: ${input.author || "Autor IA"}
-Páginas objetivo: ${input.targetPages || 20}
-Plataforma: ${input.targetPlatform || "kdp"}
+Idioma: ${clean.language}
+Autor: ${clean.author}
+Páginas objetivo: ${clean.targetPages}
+Plataforma: ${clean.targetPlatform}
+Extensión objetivo: mínimo ${targetWords} palabras totales, con ${wordsPerChapter}+ palabras por capítulo.
 
 Reglas:
 - Escribe todo en el idioma solicitado.
 - Capítulos ordenados, coherentes y sin relleno.
-- Cada capítulo debe tener varios párrafos.
+- Cada capítulo debe tener contenido largo, dividido en párrafos claros y humanos.
+- Evita frases robóticas como "en este capítulo exploraremos" repetidas.
+- Incluye detalles prácticos, ejemplos concretos y transición natural entre ideas.
 - No incluyas texto fuera del JSON.
 
 Devuelve exactamente:
@@ -88,21 +95,68 @@ Devuelve exactamente:
 }`;
 
   const aiText = await callGemini(env, prompt);
-  const parsed = parseClaudeJson(aiText);
+  const parsed = parseJson(aiText, "Gemini");
   const id = "bf-" + crypto.randomUUID().slice(0, 9);
-  const book = {
-    ...parsed,
-    id,
-    targetPages: Number(input.targetPages || 20),
-    targetPlatform: input.targetPlatform || "kdp",
-    createdAt: new Date().toISOString()
-  };
+  const book = normalizeStudioBook(parsed, clean, id);
 
   if (env.BOOKFORGE_KV) {
     await env.BOOKFORGE_KV.put(`studio:${id}`, JSON.stringify(book));
   }
 
   return json({ success: true, book });
+}
+
+function validateStudioInput(input) {
+  if (!input.topic || String(input.topic).trim().length < 3) {
+    throw httpError("Introduce una idea o tema para conectar con Gemini.", 400);
+  }
+
+  const chaptersCount = Math.max(1, Math.min(40, Number(input.chaptersCount || 4)));
+  const targetPages = Math.max(10, Math.min(500, Number(input.targetPages || 20)));
+  const language = String(input.language || "Español").slice(0, 80);
+
+  return {
+    topic: String(input.topic).trim().slice(0, 3000),
+    genre: String(input.genre || "No ficción").slice(0, 100),
+    audience: String(input.audience || "Lectores generales").slice(0, 180),
+    tone: String(input.tone || "Profesional y práctico").slice(0, 120),
+    chaptersCount,
+    language,
+    author: String(input.author || "Autor IA").slice(0, 120),
+    targetPages,
+    targetPlatform: String(input.targetPlatform || "kdp").slice(0, 40)
+  };
+}
+
+function normalizeStudioBook(book, input, id) {
+  const rawChapters = Array.isArray(book.chapters) ? book.chapters : [];
+  const chapters = rawChapters.map((chapter, index) => ({
+    number: Number(chapter.number || index + 1),
+    title: String(chapter.title || `Capítulo ${index + 1}`).trim(),
+    content: String(chapter.content || "").trim()
+  })).filter((chapter) => chapter.content);
+
+  if (!chapters.length) {
+    throw httpError("Gemini no devolvió capítulos válidos. Prueba otra vez con más detalle en el tema.", 502);
+  }
+
+  return {
+    title: String(book.title || input.topic).trim(),
+    subtitle: String(book.subtitle || `Una guía profesional sobre ${input.topic}`).trim(),
+    genre: String(book.genre || input.genre).trim(),
+    author: String(book.author || input.author).trim(),
+    language: String(book.language || input.language).trim(),
+    introduction: String(book.introduction || "").trim(),
+    tableOfContents: Array.isArray(book.tableOfContents) && book.tableOfContents.length
+      ? book.tableOfContents.map((item) => String(item))
+      : chapters.map((chapter) => `Capítulo ${chapter.number}: ${chapter.title}`),
+    chapters,
+    conclusion: String(book.conclusion || "").trim(),
+    id,
+    targetPages: input.targetPages,
+    targetPlatform: input.targetPlatform,
+    createdAt: new Date().toISOString()
+  };
 }
 
 async function regenerateSection(request, env) {
@@ -124,7 +178,7 @@ Devuelve SOLO JSON válido:
 { "subtitulo": "${sectionTitle}", "contenido": "texto completo de 700+ palabras listo para publicar" }`;
 
   const ai = await callClaude(env, prompt, 25);
-  return json({ section: parseClaudeJson(ai) });
+  return json({ section: parseJson(ai, "Claude") });
 }
 
 async function qualityPass(env, book, input) {
@@ -158,7 +212,7 @@ JSON a revisar:
 ${JSON.stringify(book)}`;
 
   const ai = await callClaude(env, prompt, input.pages, 0.35);
-  return parseClaudeJson(ai);
+  return parseJson(ai, "Claude");
 }
 
 async function listBooks(request, env) {
@@ -291,17 +345,31 @@ async function callGemini(env, prompt) {
   });
 
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.error?.message || "Gemini API request failed");
-  return data?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+  if (!response.ok) {
+    const message = data?.error?.message || "Gemini API request failed";
+    throw httpError(`Gemini API: ${message}`, response.status);
+  }
+
+  const blocked = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason;
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+  if (!text) {
+    throw httpError(`Gemini no devolvió contenido. Motivo: ${blocked || "respuesta vacía"}`, 502);
+  }
+  return text;
 }
 
 function parseClaudeJson(text) {
-  if (!text) throw new Error("Claude returned an empty response");
+  return parseJson(text, "Claude");
+}
+
+function parseJson(text, provider = "AI") {
+  if (!text) throw new Error(`${provider} returned an empty response`);
+  const cleaned = String(text).trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("Claude response was not valid JSON");
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error(`${provider} response was not valid JSON`);
     return JSON.parse(match[0]);
   }
 }
@@ -350,8 +418,23 @@ async function readJson(request) {
 
 function assertEnv(env, keys) {
   for (const key of keys) {
-    if (!env[key]) throw new Error(`Missing environment variable: ${key}`);
+    if (!env[key]) throw httpError(`Missing environment variable: ${key}`, 500);
   }
+}
+
+function health(env) {
+  return json({
+    ok: true,
+    geminiConfigured: Boolean(env.GEMINI_API_KEY),
+    geminiModel: env.GEMINI_MODEL || "gemini-2.0-flash",
+    kvConfigured: Boolean(env.BOOKFORGE_KV)
+  });
+}
+
+function httpError(message, status = 500) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
 }
 
 function json(data, status = 200) {
