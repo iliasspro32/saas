@@ -122,6 +122,19 @@
       .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
       .metric { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--panel); }
       .metric strong { display: block; font-size: 26px; }
+      .bookforge-starter {
+        margin-top: 20px;
+        border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--line));
+        border-radius: 14px;
+        padding: 18px;
+        background:
+          radial-gradient(circle at 90% 10%, rgba(245, 158, 11, 0.18), transparent 16rem),
+          color-mix(in srgb, var(--panel) 94%, transparent);
+      }
+      .bookforge-starter h2 { font-size: 24px; }
+      .bookforge-starter form { display: grid; gap: 12px; margin-top: 14px; }
+      .bookforge-starter .starter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .bookforge-starter button { background: #f59e0b; border-color: #f59e0b; color: #111827; }
       .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
       .pricing { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
       .price { min-height: 260px; display: flex; flex-direction: column; justify-content: space-between; }
@@ -174,6 +187,7 @@
         .sidebar { display: none; }
         .mobile-brand { display: flex; }
         .hero, .generator, .grid, .pricing { grid-template-columns: 1fr; }
+        .bookforge-starter .starter-grid { grid-template-columns: 1fr; }
         .metrics { grid-template-columns: 1fr; }
         .main { padding: 16px; }
       }
@@ -210,6 +224,21 @@
               <div class="actions">
                 <button class="btn primary" data-go="generator">Open generator</button>
                 <button class="btn" data-go="pricing">View pricing</button>
+              </div>
+              <div class="bookforge-starter">
+                <span class="eyebrow">BookForge AI</span>
+                <h2>Crear ebook completo con portada</h2>
+                <p>Rellena la idea y abre el generador de libros con 50, 100, 200 o 300 páginas, idiomas y exportación PDF/EPUB/DOCX.</p>
+                <form id="rootBookForgeForm">
+                  <label>Título del ebook <input name="titulo" required placeholder="Ej: Hábitos para emprendedores" /></label>
+                  <label>Tema <input name="tema" required placeholder="Describe de qué trata el libro" /></label>
+                  <div class="starter-grid">
+                    <label>Tipo <select name="tipo"><option>Non-fiction</option><option>How-to</option><option>Workbook</option><option>Journal</option><option>Novela</option></select></label>
+                    <label>Idioma <select name="idioma"><option>Español</option><option>Inglés</option><option>Portugués</option><option>Francés</option></select></label>
+                    <label>Páginas <select name="pages"><option>50</option><option selected>100</option><option>150</option><option>200</option><option>300</option></select></label>
+                  </div>
+                  <button class="btn primary" type="submit">Crear ebook ahora</button>
+                </form>
               </div>
               <div class="metrics">
                 <div class="metric"><strong id="creditCount">150</strong><span>Credits</span></div>
@@ -358,6 +387,18 @@ Context used: ${details}`);
         if (btn) go(btn.dataset.page);
       });
       $$("[data-go]").forEach(btn => btn.addEventListener("click", () => go(btn.dataset.go)));
+      $("#rootBookForgeForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const draft = Object.fromEntries(new FormData(e.currentTarget).entries());
+        localStorage.setItem("bookforge_draft", JSON.stringify({
+          ...draft,
+          capitulos: Number(draft.pages) >= 150 ? "20" : "10",
+          plataforma: "KDP",
+          estilo: "Editorial premium",
+          coverMood: "portada premium para ebook comercial"
+        }));
+        location.href = "bookforge-ai/public/dashboard.html?start=ebook";
+      });
       $("#themeBtn").addEventListener("click", () => {
         document.body.dataset.theme = document.body.dataset.theme === "dark" ? "light" : "dark";
       });
