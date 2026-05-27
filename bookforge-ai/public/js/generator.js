@@ -624,6 +624,7 @@ function bindExports() {
     button.addEventListener("click", () => {
       if (!state.book) return toast("Genera un libro primero.");
       const type = button.dataset.export;
+      if (type === "pdf") return window.BookForgeExport.pdfKdp(state.book);
       if (type === "kdp") return window.BookForgeExport.pdfKdp(state.book);
       if (type === "etsy") return window.BookForgeExport.pdfEtsy(state.book);
       if (type === "epub") return window.BookForgeExport.epub(state.book);
