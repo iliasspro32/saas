@@ -6,6 +6,8 @@ const API = {
 
 const state = {
   token: localStorage.getItem("bookforge_session") || "",
+  demoMode: localStorage.getItem("bookforge_demo_mode") === "true",
+  apiConfig: JSON.parse(localStorage.getItem("bookforge_api_config") || "null"),
   user: null,
   book: null,
   bookId: null,
@@ -14,6 +16,7 @@ const state = {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindAuth();
+  bindApiConfig();
   bindGenerator();
   bindExports();
   hydrateDraftFromLanding();
@@ -28,6 +31,7 @@ function bindAuth() {
   const emailInput = document.getElementById("emailInput");
   const logoutButton = document.getElementById("logoutButton");
   const billingPortal = document.getElementById("billingPortal");
+  const demoModeButton = document.getElementById("demoModeButton");
 
   magicButton?.addEventListener("click", async () => {
     try {
@@ -51,9 +55,19 @@ function bindAuth() {
   logoutButton?.addEventListener("click", async () => {
     await apiFetch(`${API.auth}/logout`, { method: "POST", body: {} }).catch(() => {});
     localStorage.removeItem("bookforge_session");
+    localStorage.removeItem("bookforge_demo_mode");
     state.token = "";
+    state.demoMode = false;
     state.user = null;
     renderAuth();
+  });
+
+  demoModeButton?.addEventListener("click", () => {
+    state.demoMode = true;
+    state.user = { email: "modo-prueba@bookforge.local", plan: state.apiConfig?.apiKey ? "api-test" : "demo" };
+    localStorage.setItem("bookforge_demo_mode", "true");
+    renderAuth();
+    toast("Modo prueba activado. Puedes generar sin registrarte.");
   });
 
   billingPortal?.addEventListener("click", async () => {
@@ -64,6 +78,58 @@ function bindAuth() {
       toast(error.message);
     }
   });
+}
+
+function bindApiConfig() {
+  const form = document.getElementById("apiConfigForm");
+  const clearButton = document.getElementById("clearApiConfig");
+  hydrateApiConfigForm();
+  renderApiStatus();
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const config = Object.fromEntries(new FormData(form).entries());
+    state.apiConfig = {
+      provider: config.provider || "gemini",
+      model: config.model || "gemini-2.0-flash",
+      apiKey: config.apiKey || "",
+      maxTokens: Number(config.maxTokens || 12000)
+    };
+    localStorage.setItem("bookforge_api_config", JSON.stringify(state.apiConfig));
+    state.demoMode = true;
+    localStorage.setItem("bookforge_demo_mode", "true");
+    renderAuth();
+    renderApiStatus();
+    toast("API guardada para pruebas locales.");
+  });
+
+  clearButton?.addEventListener("click", () => {
+    state.apiConfig = null;
+    localStorage.removeItem("bookforge_api_config");
+    hydrateApiConfigForm();
+    renderApiStatus();
+    toast("API local borrada. Queda activo el demo sin coste.");
+  });
+}
+
+function hydrateApiConfigForm() {
+  const form = document.getElementById("apiConfigForm");
+  if (!form) return;
+  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.0-flash", apiKey: "", maxTokens: 12000 };
+  form.elements.provider.value = config.provider;
+  form.elements.model.value = config.model;
+  form.elements.apiKey.value = config.apiKey || "";
+  form.elements.maxTokens.value = config.maxTokens || 12000;
+}
+
+function renderApiStatus() {
+  const status = document.getElementById("apiStatus");
+  if (!status) return;
+  if (state.apiConfig?.apiKey) {
+    status.textContent = `Modo actual: pruebas sin registro usando ${state.apiConfig.provider} · ${state.apiConfig.model}.`;
+  } else {
+    status.textContent = "Modo actual: demo local sin API. Genera un libro de muestra para probar preview y exportaciones.";
+  }
 }
 
 async function verifyMagicLink() {
@@ -84,7 +150,10 @@ async function verifyMagicLink() {
 }
 
 async function loadUser() {
-  if (!state.token) return renderAuth();
+  if (!state.token) {
+    if (state.demoMode) state.user = { email: "modo-prueba@bookforge.local", plan: state.apiConfig?.apiKey ? "api-test" : "demo" };
+    return renderAuth();
+  }
   try {
     const data = await apiFetch(`${API.auth}/me`);
     state.user = data.user;
@@ -111,13 +180,12 @@ function bindGenerator() {
   form?.addEventListener("change", updateStatsFromForm);
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.token) return toast("Entra con magic link antes de generar.");
     const button = document.getElementById("generateButton");
     const payload = Object.fromEntries(new FormData(form).entries());
 
     try {
       startLoading(button);
-      const data = await apiFetch(API.generate, { method: "POST", body: payload });
+      const data = await generateBook(payload);
       state.book = data.book;
       state.bookId = data.id;
       renderBook(data.book);
@@ -131,6 +199,26 @@ function bindGenerator() {
   });
 
   document.getElementById("regenerateButton")?.addEventListener("click", regenerateFirstSection);
+}
+
+async function generateBook(payload) {
+  if (state.apiConfig?.apiKey) {
+    const book = await generateWithConfiguredApi(payload);
+    const id = `local-${Date.now()}`;
+    saveLocalBook(id, book);
+    return { id, book };
+  }
+
+  if (state.token) {
+    return apiFetch(API.generate, { method: "POST", body: payload });
+  }
+
+  state.demoMode = true;
+  localStorage.setItem("bookforge_demo_mode", "true");
+  const book = buildDemoBook(payload);
+  const id = `demo-${Date.now()}`;
+  saveLocalBook(id, book);
+  return { id, book };
 }
 
 function hydrateDraftFromLanding() {
@@ -162,11 +250,163 @@ function updateStatsFromForm() {
   setText("statFormat", data.plataforma || "KDP");
 }
 
+async function generateWithConfiguredApi(payload) {
+  const config = state.apiConfig;
+  const prompt = buildApiPrompt(payload);
+  let text;
+
+  if (config.provider === "gemini") {
+    text = await callGemini(config, prompt);
+  } else if (config.provider === "openrouter") {
+    text = await callOpenAiCompatible("https://openrouter.ai/api/v1/chat/completions", config, prompt);
+  } else if (config.provider === "openai") {
+    text = await callOpenAiCompatible("https://api.openai.com/v1/chat/completions", config, prompt);
+  } else if (config.provider === "anthropic") {
+    text = await callAnthropic(config, prompt);
+  } else {
+    throw new Error("Proveedor no soportado.");
+  }
+
+  return normalizeBook(parseJsonText(text), payload, `api-${config.provider}`);
+}
+
+async function callGemini(config, prompt) {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: config.maxTokens || 12000,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "Gemini API error");
+  return data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+}
+
+async function callOpenAiCompatible(endpoint, config, prompt) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+      "HTTP-Referer": location.origin,
+      "X-Title": "BookForge AI"
+    },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0.7,
+      max_tokens: config.maxTokens || 12000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "Eres un autor y editor profesional. Responde solo JSON válido." },
+        { role: "user", content: prompt }
+      ]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "API error");
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function callAnthropic(config, prompt) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: config.maxTokens || 12000,
+      temperature: 0.7,
+      system: "Eres un autor y editor profesional. Responde solo JSON válido.",
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || "Anthropic API error");
+  return data.content?.map((part) => part.text || "").join("") || "";
+}
+
+function buildApiPrompt(payload) {
+  const pages = Number(payload.pages || 100);
+  const words = Math.max(9000, pages * 220);
+  return `Crea un libro profesional completo y humano, revisado como editor, listo para publicar.
+Título: ${payload.titulo}
+Autor: ${payload.autor || "BookForge AI Studio"}
+Tema: ${payload.tema}
+Tipo: ${payload.tipo}
+Capítulos: ${payload.capitulos}
+Idioma: ${payload.idioma}
+Plataforma: ${payload.plataforma}
+Estilo: ${payload.estilo}
+Páginas objetivo: ${pages}
+Extensión objetivo: ${words}+ palabras
+Público objetivo: ${payload.publico || "lectores interesados en el tema"}
+Portada: ${payload.coverMood || "portada comercial premium"}
+
+Devuelve SOLO JSON válido con estas claves:
+{
+  "titulo": "string",
+  "subtitulo": "string",
+  "autor": "string",
+  "idioma": "string",
+  "plataforma": "string",
+  "tipo": "string",
+  "descripcion_kdp": "200 palabras",
+  "keywords": ["7 keywords"],
+  "categoria_kdp": "string",
+  "portada": {
+    "titulo_portada": "string",
+    "subtitulo_portada": "string",
+    "autor_portada": "string",
+    "concepto": "string",
+    "paleta": ["#0a0a0f", "#6366f1", "#f59e0b"],
+    "tipografia": "string",
+    "prompt_imagen": "string",
+    "texto_contraportada": "string"
+  },
+  "indice": [{"capitulo": 1, "titulo": "string", "descripcion": "string"}],
+  "contenido": [{"capitulo": 1, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "string", "contenido": "700+ palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
+  "recursos_extra": [{"titulo": "string", "contenido": "string"}],
+  "conclusion_final": "600+ palabras",
+  "sobre_el_autor": "string",
+  "paginas_estimadas": ${pages},
+  "control_calidad": {"estado": "revisado", "tono_humano": "alto", "listo_para_publicar": true}
+}`;
+}
+
+function parseJsonText(text) {
+  if (!text) throw new Error("La API no devolvió contenido.");
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("La API no devolvió JSON válido.");
+    return JSON.parse(match[0]);
+  }
+}
+
 async function regenerateFirstSection() {
   if (!state.book || !state.bookId) return toast("Genera un libro primero.");
   const first = state.book.contenido?.[0];
   const section = first?.secciones?.[0];
   if (!first || !section) return toast("No hay sección para regenerar.");
+  if (!state.token || state.bookId.startsWith("local") || state.bookId.startsWith("demo")) {
+    section.contenido = `${section.contenido}\n\nVersión regenerada: esta sección se ha reforzado con una explicación más clara, transiciones más humanas y una aplicación práctica adicional para que puedas probar el flujo sin registro.`;
+    saveLocalBook(state.bookId, state.book);
+    renderBook(state.book);
+    await loadHistory();
+    toast("Sección regenerada en modo prueba.");
+    return;
+  }
   try {
     const data = await apiFetch(`${API.generate}/regenerate-section`, {
       method: "POST",
@@ -244,23 +484,104 @@ function renderManuscript(book) {
   document.getElementById("bookPreview").innerHTML = html;
 }
 
+function normalizeBook(book, payload, owner) {
+  return {
+    ...book,
+    titulo: book.titulo || payload.titulo,
+    autor: book.autor || payload.autor || "BookForge AI Studio",
+    idioma: book.idioma || payload.idioma,
+    plataforma: book.plataforma || payload.plataforma,
+    tipo: book.tipo || payload.tipo,
+    paginas_estimadas: Number(book.paginas_estimadas || payload.pages || 100),
+    owner,
+    created_at: new Date().toISOString()
+  };
+}
+
+function buildDemoBook(payload) {
+  const title = payload.titulo || "Ebook de prueba";
+  const chapters = Number(payload.capitulos || 10);
+  const chapterItems = Array.from({ length: Math.min(chapters, 6) }, (_, index) => {
+    const number = index + 1;
+    return {
+      capitulo: number,
+      titulo: `Pilar ${number}: ${payload.tema ? String(payload.tema).split(" ").slice(0, 4).join(" ") : "desarrollo del tema"}`,
+      introduccion: `Este capítulo muestra cómo se estructuraría una sección profesional del libro "${title}". En una generación real con API, este bloque se expande con investigación, ejemplos, transiciones naturales, contexto humano y una voz editorial consistente. Para la prueba, BookForge crea contenido suficiente para validar portada, preview, historial y exportación sin obligarte a registrarte.`,
+      secciones: [
+        {
+          subtitulo: "Idea principal",
+          contenido: `La idea central se desarrolla con claridad, evitando frases genéricas y manteniendo un tono humano. El lector recibe una explicación ordenada, ejemplos prácticos y una progresión natural. Este texto demo confirma el flujo completo: formulario, generación, render del manuscrito, portada, PDF KDP, PDF Etsy, EPUB y DOCX. Al conectar Gemini u otra API, esta sección se reemplaza por contenido largo de 700 o más palabras por sección.`
+        },
+        {
+          subtitulo: "Aplicación práctica",
+          contenido: `Una buena obra publicable no solo informa: guía al lector hacia una transformación concreta. Por eso cada capítulo incluye acciones, reflexión y una conclusión útil. Esta demo está pensada para probar el producto sin coste, mientras el modo API permite generar libros completos con muchas más páginas e idiomas.`
+        }
+      ],
+      conclusion: "El capítulo termina conectando la teoría con una acción concreta para que el lector avance sin sentirse perdido.",
+      ejercicio: "Escribe tres ideas que puedas aplicar hoy y convierte una de ellas en una acción de 15 minutos."
+    };
+  });
+
+  return normalizeBook({
+    titulo: title,
+    subtitulo: "Una guía profesional creada con BookForge AI",
+    autor: payload.autor || "BookForge AI Studio",
+    idioma: payload.idioma || "Español",
+    plataforma: payload.plataforma || "KDP",
+    tipo: payload.tipo || "Non-fiction",
+    descripcion_kdp: `Descubre una guía práctica sobre ${payload.tema || "tu tema"} diseñada para lectores que buscan claridad, estructura y resultados aplicables. Esta versión demo permite validar el flujo de creación antes de conectar una API real.`,
+    keywords: ["ebook", "KDP", "guía práctica", "libro digital", "workbook", "publicación", "BookForge"],
+    categoria_kdp: "Business & Money / Personal Success",
+    portada: {
+      titulo_portada: title,
+      subtitulo_portada: "Guía completa para transformar ideas en un libro publicable",
+      autor_portada: payload.autor || "BookForge AI Studio",
+      concepto: "Portada premium con composición editorial, alto contraste y foco comercial.",
+      paleta: ["#0a0a0f", "#6366f1", "#f59e0b"],
+      tipografia: "Playfair Display para título, Inter para datos secundarios",
+      prompt_imagen: `Portada editorial premium para un ebook titulado ${title}, estilo ${payload.estilo || "elegante"}, sin texto incrustado`,
+      texto_contraportada: "Un libro claro, práctico y listo para convertir una idea en un producto digital publicable."
+    },
+    indice: chapterItems.map((chapter) => ({ capitulo: chapter.capitulo, titulo: chapter.titulo, descripcion: "Capítulo estructurado para desarrollar el tema con enfoque práctico." })),
+    contenido: chapterItems,
+    recursos_extra: [{ titulo: "Checklist de publicación", contenido: "Revisa título, portada, descripción, keywords, categoría, formato PDF, enlaces y precio antes de publicar." }],
+    conclusion_final: "Esta conclusión demo valida el cierre editorial del libro. Con una API configurada, BookForge genera una conclusión más extensa, humana y adaptada al idioma, plataforma y lector objetivo.",
+    sobre_el_autor: "BookForge AI Studio ayuda a convertir ideas en libros digitales listos para publicar.",
+    paginas_estimadas: Number(payload.pages || 100),
+    control_calidad: { estado: "demo", tono_humano: "medio", listo_para_publicar: false }
+  }, payload, "demo-local");
+}
+
+function saveLocalBook(id, book) {
+  const books = JSON.parse(localStorage.getItem("bookforge_local_books") || "[]");
+  const next = [{ id, book }, ...books.filter((item) => item.id !== id)].slice(0, 25);
+  localStorage.setItem("bookforge_local_books", JSON.stringify(next));
+}
+
 async function loadHistory() {
-  if (!state.token) return;
+  const localBooks = JSON.parse(localStorage.getItem("bookforge_local_books") || "[]");
+  if (!state.token) {
+    renderHistoryItems(localBooks.map((item) => ({ id: item.id, ...item.book })));
+    return;
+  }
   try {
     const data = await apiFetch(API.generate);
-    const list = document.getElementById("historyList");
-    if (!list) return;
-    list.innerHTML = data.books?.length ? data.books.map((book) => `
-      <div class="history-item">
-        <strong>${escapeHtml(book.titulo)}</strong>
-        <span>${escapeHtml(book.idioma)} · ${escapeHtml(book.plataforma)} · ${escapeHtml(String(book.paginas_estimadas))} páginas</span>
-        <button data-book-id="${book.id}">Guardado en KV</button>
-      </div>
-    `).join("") : `<p>No hay libros todavía.</p>`;
+    renderHistoryItems([...(data.books || []), ...localBooks.map((item) => ({ id: item.id, ...item.book }))]);
   } catch {
-    const list = document.getElementById("historyList");
-    if (list) list.innerHTML = `<p>Entra para ver tu historial.</p>`;
+    renderHistoryItems(localBooks.map((item) => ({ id: item.id, ...item.book })));
   }
+}
+
+function renderHistoryItems(books) {
+  const list = document.getElementById("historyList");
+  if (!list) return;
+  list.innerHTML = books.length ? books.map((book) => `
+    <div class="history-item">
+      <strong>${escapeHtml(book.titulo)}</strong>
+      <span>${escapeHtml(book.idioma)} · ${escapeHtml(book.plataforma)} · ${escapeHtml(String(book.paginas_estimadas))} páginas</span>
+      <button data-book-id="${book.id}">${String(book.id).startsWith("local") || String(book.id).startsWith("demo") ? "Guardado local" : "Guardado en KV"}</button>
+    </div>
+  `).join("") : `<p>No hay libros todavía.</p>`;
 }
 
 function startLoading(button) {

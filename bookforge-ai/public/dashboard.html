@@ -18,6 +18,7 @@
     <a class="brand" href="index.html"><span>BF</span> BookForge AI</a>
     <nav>
       <a class="active" href="#generator">Generador</a>
+      <a href="#apiAdmin">API Admin</a>
       <a href="#preview">Preview</a>
       <a href="#history">Historial</a>
       <a href="pricing.html">Planes</a>
@@ -39,12 +40,45 @@
       <div class="auth-box" id="authBox">
         <input id="emailInput" type="email" placeholder="tu@email.com">
         <button id="magicButton">Enviar magic link</button>
+        <button id="demoModeButton" type="button">Probar sin registro</button>
       </div>
       <div class="user-box hidden" id="userBox">
         <span id="userEmail"></span>
         <button id="logoutButton">Salir</button>
       </div>
     </header>
+
+    <section class="api-admin-panel" id="apiAdmin">
+      <div>
+        <p class="eyebrow">API Admin</p>
+        <h2>Configurar IA para pruebas</h2>
+        <p>Guarda una clave local para probar sin registro. Para producción usa los secretos del Worker.</p>
+      </div>
+      <form id="apiConfigForm" class="api-config-form">
+        <label>Proveedor
+          <select name="provider">
+            <option value="gemini">Gemini</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic Claude</option>
+          </select>
+        </label>
+        <label>Modelo
+          <input name="model" value="gemini-2.0-flash" placeholder="gemini-2.0-flash, gpt-4o-mini, claude-sonnet-4-20250514">
+        </label>
+        <label>API key
+          <input name="apiKey" type="password" placeholder="Pega tu API key para pruebas locales">
+        </label>
+        <label>Máx. tokens
+          <input name="maxTokens" type="number" min="1000" max="64000" value="12000">
+        </label>
+        <div class="api-actions">
+          <button type="submit">Guardar API</button>
+          <button type="button" id="clearApiConfig">Borrar API</button>
+        </div>
+      </form>
+      <div class="api-status" id="apiStatus">Modo actual: demo local sin API.</div>
+    </section>
 
     <section class="workspace" id="generator">
       <form class="generator-card" id="bookForm">

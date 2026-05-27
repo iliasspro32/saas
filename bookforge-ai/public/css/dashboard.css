@@ -70,6 +70,7 @@
 .auth-box,
 .user-box {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -86,7 +87,8 @@
 .user-box button,
 .export-actions button,
 .regenerate-button,
-.generate-button {
+.generate-button,
+.api-actions button {
   min-height: 44px;
   border: 0;
   border-radius: var(--radius);
@@ -100,6 +102,54 @@
   align-items: center;
   justify-content: space-between;
   color: var(--muted);
+}
+
+.api-admin-panel {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(18,18,27,.86);
+  padding: 18px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.18);
+}
+
+.api-admin-panel h2 {
+  margin-top: 8px;
+}
+
+.api-admin-panel p:not(.eyebrow) {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.api-config-form {
+  display: grid;
+  gap: 12px;
+}
+
+.api-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.api-actions button:nth-child(2) {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+}
+
+.api-status {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  color: #fef3c7;
+  background: rgba(245,158,11,.1);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .workspace {
@@ -359,6 +409,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 
 @media (min-width: 760px) {
   .field-grid { grid-template-columns: repeat(2, 1fr); }
+  .api-config-form { grid-template-columns: 180px 1fr 1fr 140px; align-items: end; }
+  .api-actions { grid-column: 1 / -1; }
   .preview-toolbar { grid-template-columns: 1fr auto; align-items: center; }
 }
 
