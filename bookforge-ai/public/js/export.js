@@ -15,46 +15,238 @@
   }
 
   async function pdfKdp(book) {
-    const paper = document.getElementById("bookPaper");
-    if (!paper || !window.html2pdf) return alert("html2pdf.js no está cargado.");
-    const clone = paper.cloneNode(true);
-    clone.style.width = "6in";
-    clone.style.padding = ".65in";
-    clone.style.background = "#fff";
-    clone.style.color = "#111";
-    clone.style.fontFamily = "Georgia, serif";
-    clone.querySelectorAll("p, li").forEach((node) => { node.style.fontSize = "11pt"; node.style.lineHeight = "1.55"; });
-    await window.html2pdf().set({
-      margin: 0,
-      filename: `${slug(book.titulo)}-kdp-6x9.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "in", format: [6, 9], orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"] }
-    }).from(clone).save();
+    if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
+    buildBookPdf(doc, book, { width: 432, height: 648, margin: 50, fontSize: 11, lineHeight: 15, style: "kdp" });
+    doc.save(`${slug(book.titulo)}-kdp-6x9.pdf`);
   }
 
   async function pdfEtsy(book) {
-    const wrapper = document.createElement("div");
-    wrapper.style.width = "210mm";
-    wrapper.style.padding = "18mm";
-    wrapper.style.background = "#fff7ed";
-    wrapper.style.color = "#111827";
-    wrapper.innerHTML = `
-      <div style="border:4px solid #6366f1;padding:24px;margin-bottom:20px">
-        <h1 style="font-family:Georgia,serif;font-size:42px;line-height:1">${book.titulo}</h1>
-        <p style="font-size:18px;color:#4b5563">${book.subtitulo || ""}</p>
-        <p><strong>${book.autor || ""}</strong></p>
-      </div>
-      ${allChapterText(book)}
-    `;
-    await window.html2pdf().set({
-      margin: 0,
-      filename: `${slug(book.titulo)}-etsy-a4.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-    }).from(wrapper).save();
+    if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+    buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 58, fontSize: 12, lineHeight: 17, style: "etsy" });
+    doc.save(`${slug(book.titulo)}-etsy-a4.pdf`);
+  }
+
+  function buildBookPdf(doc, book, settings) {
+    const page = { n: 0 };
+    const cover = book.portada || {};
+    const colors = cover.paleta?.length ? cover.paleta : ["#111827", "#4f46e5", "#f59e0b"];
+    drawCover(doc, book, cover, colors, settings, page);
+    addPage(doc, settings, page, false);
+    drawTitlePage(doc, book, settings);
+    addPage(doc, settings, page);
+    drawMetadataPage(doc, book, settings, page);
+    addPage(doc, settings, page);
+    drawTocPage(doc, book, settings, page);
+
+    (book.contenido || []).forEach((chapter) => {
+      addPage(doc, settings, page);
+      drawChapter(doc, chapter, settings, page);
+    });
+
+    addPage(doc, settings, page);
+    let y = settings.margin;
+    y = drawHeading(doc, "Recursos extra", y, settings, 22, page);
+    (book.recursos_extra || []).forEach((item) => {
+      y = ensureSpace(doc, y, 90, settings, page);
+      y = drawHeading(doc, text(item.titulo), y, settings, 15, page);
+      y = drawParagraph(doc, text(item.contenido), y, settings, page);
+    });
+
+    addPage(doc, settings, page);
+    y = settings.margin;
+    y = drawHeading(doc, "Conclusión final", y, settings, 22, page);
+    y = drawParagraph(doc, text(book.conclusion_final), y, settings, page);
+    y = drawHeading(doc, "Sobre el autor", y + 12, settings, 20, page);
+    drawParagraph(doc, text(book.sobre_el_autor), y, settings, page);
+  }
+
+  function drawCover(doc, book, cover, colors, settings, page) {
+    page.n = 0;
+    setFill(doc, colors[0]);
+    doc.rect(0, 0, settings.width, settings.height, "F");
+    setFill(doc, colors[1]);
+    doc.rect(28, 28, settings.width - 56, settings.height - 56, "F");
+    setFill(doc, colors[0]);
+    doc.rect(44, 44, settings.width - 88, settings.height - 88, "F");
+    setFill(doc, colors[2]);
+    doc.circle(settings.width - 92, 118, 56, "F");
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(1);
+    doc.rect(58, 58, settings.width - 116, settings.height - 116);
+    doc.setTextColor(254, 243, 199);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`${text(book.plataforma || "KDP").toUpperCase()} READY`, 72, 88);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("times", "bold");
+    doc.setFontSize(34);
+    const titleLines = doc.splitTextToSize(text(cover.titulo_portada || book.titulo), settings.width - 130);
+    doc.text(titleLines, 72, 230);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(13);
+    doc.setTextColor(255, 247, 237);
+    const subtitleLines = doc.splitTextToSize(text(cover.subtitulo_portada || book.subtitulo), settings.width - 140);
+    doc.text(subtitleLines, 72, 230 + titleLines.length * 38 + 20);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(254, 243, 199);
+    doc.text(text(cover.autor_portada || book.autor || "BookForge AI Studio").toUpperCase(), 72, settings.height - 86);
+  }
+
+  function drawTitlePage(doc, book, settings) {
+    doc.setTextColor(17, 24, 39);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(text(book.tipo || "Ebook profesional").toUpperCase(), settings.width / 2, 150, { align: "center" });
+    doc.setFont("times", "bold");
+    doc.setFontSize(30);
+    const title = doc.splitTextToSize(text(book.titulo), settings.width - settings.margin * 2);
+    doc.text(title, settings.width / 2, 230, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(13);
+    doc.setTextColor(75, 85, 99);
+    const subtitle = doc.splitTextToSize(text(book.subtitulo), settings.width - settings.margin * 2);
+    doc.text(subtitle, settings.width / 2, 300 + title.length * 20, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(17, 24, 39);
+    doc.text(text(book.autor || "BookForge AI Studio"), settings.width / 2, settings.height - 130, { align: "center" });
+  }
+
+  function drawMetadataPage(doc, book, settings, page) {
+    let y = settings.margin;
+    y = drawHeading(doc, "Información editorial", y, settings, 22, page);
+    y = drawInfo(doc, "Plataforma", book.plataforma, y, settings);
+    y = drawInfo(doc, "Idioma", book.idioma, y, settings);
+    y = drawInfo(doc, "Categoría KDP", book.categoria_kdp, y, settings);
+    y = drawInfo(doc, "Páginas estimadas", String(book.paginas_estimadas || ""), y, settings);
+    y = drawHeading(doc, "Descripción KDP", y + 10, settings, 16, page);
+    y = drawParagraph(doc, text(book.descripcion_kdp), y, settings, page);
+    y = drawHeading(doc, "Keywords", y + 8, settings, 16, page);
+    drawParagraph(doc, (book.keywords || []).join(", "), y, settings, page);
+  }
+
+  function drawTocPage(doc, book, settings, page) {
+    let y = settings.margin;
+    y = drawHeading(doc, "Índice", y, settings, 24, page);
+    (book.indice || []).forEach((item) => {
+      y = ensureSpace(doc, y, 58, settings, page);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(138, 107, 45);
+      doc.text(`CAPÍTULO ${item.capitulo}`, settings.margin, y);
+      y += 14;
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(17, 24, 39);
+      doc.text(text(item.titulo), settings.margin, y);
+      y += 16;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(96, 96, 96);
+      const lines = doc.splitTextToSize(text(item.descripcion), settings.width - settings.margin * 2);
+      doc.text(lines, settings.margin, y);
+      y += lines.length * 12 + 12;
+    });
+  }
+
+  function drawChapter(doc, chapter, settings, page) {
+    let y = settings.margin;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(138, 107, 45);
+    doc.text(`CAPÍTULO ${chapter.capitulo}`, settings.margin, y);
+    y += 18;
+    y = drawHeading(doc, text(chapter.titulo), y, settings, 24, page);
+    y = drawParagraph(doc, text(chapter.introduccion), y, settings, page);
+    (chapter.secciones || []).forEach((section) => {
+      y = drawHeading(doc, text(section.subtitulo), y + 8, settings, 16, page);
+      y = drawParagraph(doc, text(section.contenido), y, settings, page);
+    });
+    y = drawHeading(doc, "Conclusión", y + 8, settings, 16, page);
+    y = drawParagraph(doc, text(chapter.conclusion), y, settings, page);
+    y = drawHeading(doc, "Ejercicio práctico", y + 8, settings, 15, page);
+    drawParagraph(doc, text(chapter.ejercicio), y, settings, page);
+  }
+
+  function addPage(doc, settings, page, number = true) {
+    if (page.n > 0 || !number) doc.addPage();
+    page.n += 1;
+    setFill(doc, settings.style === "etsy" ? "#fff7ed" : "#fffdf8");
+    doc.rect(0, 0, settings.width, settings.height, "F");
+    if (number && page.n > 1) drawPageNumber(doc, settings, page.n - 1);
+  }
+
+  function drawPageNumber(doc, settings, number) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(120, 113, 108);
+    doc.text(String(number), settings.width / 2, settings.height - 24, { align: "center" });
+  }
+
+  function drawHeading(doc, heading, y, settings, size, page) {
+    y = ensureSpace(doc, y, size * 2.2, settings, page);
+    doc.setFont("times", "bold");
+    doc.setFontSize(size);
+    doc.setTextColor(17, 24, 39);
+    const lines = doc.splitTextToSize(text(heading), settings.width - settings.margin * 2);
+    doc.text(lines, settings.margin, y);
+    return y + lines.length * (size + 4) + 8;
+  }
+
+  function drawInfo(doc, label, value, y, settings) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(138, 107, 45);
+    doc.text(String(label).toUpperCase(), settings.margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(17, 24, 39);
+    doc.text(text(value), settings.margin + 120, y);
+    return y + 22;
+  }
+
+  function drawParagraph(doc, content, y, settings, page) {
+    doc.setFont("times", "normal");
+    doc.setFontSize(settings.fontSize);
+    doc.setTextColor(31, 41, 55);
+    const paragraphs = text(content).split(/\n{2,}/).filter(Boolean);
+    paragraphs.forEach((paragraph) => {
+      const lines = doc.splitTextToSize(paragraph, settings.width - settings.margin * 2);
+      lines.forEach((line) => {
+        y = ensureSpace(doc, y, settings.lineHeight + 8, settings, page);
+        doc.text(line, settings.margin, y);
+        y += settings.lineHeight;
+      });
+      y += 8;
+    });
+    return y;
+  }
+
+  function ensureSpace(doc, y, needed, settings, page) {
+    if (y + needed <= settings.height - settings.margin) return y;
+    doc.addPage();
+    page.n += 1;
+    setFill(doc, settings.style === "etsy" ? "#fff7ed" : "#fffdf8");
+    doc.rect(0, 0, settings.width, settings.height, "F");
+    drawPageNumber(doc, settings, page.n - 1);
+    return settings.margin;
+  }
+
+  function setFill(doc, hex) {
+    const [r, g, b] = hexToRgb(hex);
+    doc.setFillColor(r, g, b);
+  }
+
+  function hexToRgb(hex = "#ffffff") {
+    const clean = String(hex).replace("#", "").trim();
+    const value = clean.length === 3 ? clean.split("").map((char) => char + char).join("") : clean.padEnd(6, "f").slice(0, 6);
+    return [
+      parseInt(value.slice(0, 2), 16),
+      parseInt(value.slice(2, 4), 16),
+      parseInt(value.slice(4, 6), 16)
+    ];
   }
 
   async function epub(book) {
