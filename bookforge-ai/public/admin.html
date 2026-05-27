@@ -159,13 +159,33 @@
         font-size: 13px;
         line-height: 1.6;
       }
+      body.locked main,
+      body.locked header .nav {
+        display: none;
+      }
+      .lock-screen {
+        min-height: calc(100vh - 110px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      body.locked .lock-screen { display: flex; }
+      .lock-card {
+        width: min(520px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(15, 23, 42, .86);
+        box-shadow: 0 24px 90px rgba(0,0,0,.42);
+        padding: 26px;
+      }
+      .lock-card h1 { font-size: clamp(38px, 8vw, 72px); }
       @media (max-width: 900px) {
         .hero, .status-grid, .form-grid { grid-template-columns: 1fr; }
         header { align-items: flex-start; flex-direction: column; }
       }
     </style>
   </head>
-  <body>
+  <body class="locked">
     <div class="shell">
       <header>
         <a class="brand" href="index.html"><span class="logo">B</span><span>BookForge AI Admin</span></a>
@@ -175,6 +195,21 @@
           <button id="clearToken" type="button">Cerrar admin</button>
         </div>
       </header>
+
+      <section class="lock-screen">
+        <div class="lock-card">
+          <span class="eyebrow">Acceso privado</span>
+          <h1>Admin bloqueado</h1>
+          <p>Introduce tu clave admin para abrir configuración, APIs, pagos y email.</p>
+          <label>Clave admin
+            <input id="lockToken" type="password" autocomplete="current-password" placeholder="Tu ADMIN_TOKEN">
+          </label>
+          <div class="actions">
+            <button class="primary" id="unlockAdmin" type="button">Desbloquear admin</button>
+          </div>
+          <pre id="lockOutput">Panel protegido.</pre>
+        </div>
+      </section>
 
       <main>
         <section class="hero">
@@ -271,8 +306,15 @@
       const API_BASE = "/api/pages-admin";
       const output = $("#output");
       const tokenInput = $("#adminToken");
+      const lockInput = $("#lockToken");
+      const lockOutput = $("#lockOutput");
       const form = $("#configForm");
       tokenInput.value = localStorage.getItem("bookforge_admin_token") || "";
+      lockInput.value = tokenInput.value;
+
+      function setUnlocked(unlocked) {
+        document.body.classList.toggle("locked", !unlocked);
+      }
 
       function token() {
         return tokenInput.value.trim();
@@ -280,6 +322,10 @@
 
       function write(data) {
         output.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      }
+
+      function writeLock(data) {
+        lockOutput.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
       }
 
       async function adminFetch(path, options = {}) {
@@ -338,6 +384,8 @@
         const data = await adminFetch(`${API_BASE}/status`);
         renderStatus(data);
         write(data);
+        setUnlocked(true);
+        return data;
       }
 
       async function diagnoseAdmin() {
@@ -366,6 +414,18 @@
         await refreshStatus().catch((error) => write(error.message));
       });
 
+      $("#unlockAdmin").addEventListener("click", async () => {
+        try {
+          tokenInput.value = lockInput.value.trim();
+          localStorage.setItem("bookforge_admin_token", token());
+          const data = await refreshStatus();
+          writeLock(data);
+        } catch (error) {
+          setUnlocked(false);
+          writeLock(error.message);
+        }
+      });
+
       $("#setupAdmin").addEventListener("click", async () => {
         try {
           if (!token()) throw new Error("Escribe una clave admin primero.");
@@ -384,6 +444,8 @@
       $("#clearToken").addEventListener("click", () => {
         localStorage.removeItem("bookforge_admin_token");
         tokenInput.value = "";
+        lockInput.value = "";
+        setUnlocked(false);
         renderStatus();
         write("Token admin eliminado de este navegador.");
       });
@@ -431,7 +493,12 @@
       });
 
       renderStatus();
-      if (token()) refreshStatus().catch((error) => write(error.message));
+      if (token()) {
+        refreshStatus().catch((error) => {
+          setUnlocked(false);
+          writeLock(error.message);
+        });
+      }
     </script>
   </body>
 </html>
