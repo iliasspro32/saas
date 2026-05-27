@@ -6,7 +6,7 @@ const corsHeaders = {
 
 const CONFIG_KEY = "admin:config";
 const ADMIN_AUTH_KEY = "admin:auth";
-const SECRET_FIELDS = ["geminiApiKey", "anthropicApiKey", "stripeSecretKey", "stripeWebhookSecret", "resendApiKey"];
+const SECRET_FIELDS = ["geminiApiKey", "openRouterApiKey", "anthropicApiKey", "stripeSecretKey", "stripeWebhookSecret", "resendApiKey"];
 
 export default {
   async fetch(request, env) {
@@ -19,6 +19,7 @@ export default {
       if (request.method === "POST" && url.pathname.includes("config")) return await saveConfig(request, env);
       if (request.method === "GET" && url.pathname.includes("status")) return await status(env);
       if (request.method === "POST" && url.pathname.includes("test-gemini")) return await testGemini(env);
+      if (request.method === "POST" && url.pathname.includes("test-openrouter")) return await testOpenRouter(env);
       return json({ error: "Route not found" }, 404);
     } catch (error) {
       return json({ error: error.message || "Admin error" }, Number(error.status || 500));
@@ -65,6 +66,9 @@ async function saveConfig(request, env) {
     appUrl: clean(incoming.appUrl, current.appUrl || env.APP_URL || ""),
     geminiModel: clean(incoming.geminiModel, current.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash"),
     geminiMaxTokens: clean(incoming.geminiMaxTokens, current.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000"),
+    aiProvider: clean(incoming.aiProvider, current.aiProvider || env.AI_PROVIDER || "gemini"),
+    openRouterModel: clean(incoming.openRouterModel, current.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini"),
+    openRouterMaxTokens: clean(incoming.openRouterMaxTokens, current.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "4096"),
     stripeProPriceId: clean(incoming.stripeProPriceId, current.stripeProPriceId || env.STRIPE_PRO_PRICE_ID || ""),
     stripeAgencyPriceId: clean(incoming.stripeAgencyPriceId, current.stripeAgencyPriceId || env.STRIPE_AGENCY_PRICE_ID || ""),
     emailFrom: clean(incoming.emailFrom, current.emailFrom || env.EMAIL_FROM || ""),
@@ -91,6 +95,9 @@ async function status(env) {
     needsSetup: !env.ADMIN_TOKEN && !hasStoredAdmin,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
     geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
+    openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
+    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+    aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY || config.stripeSecretKey),
     stripePricesConfigured: Boolean((env.STRIPE_PRO_PRICE_ID || config.stripeProPriceId) && (env.STRIPE_AGENCY_PRICE_ID || config.stripeAgencyPriceId)),
     emailConfigured: Boolean((env.RESEND_API_KEY || config.resendApiKey) && (env.EMAIL_FROM || config.emailFrom)),
@@ -115,6 +122,36 @@ async function testGemini(env) {
   const data = await response.json().catch(() => null);
   if (!response.ok) throw httpError(data?.error?.message || "Gemini test failed", response.status);
   return json({ ok: true, model, response: data?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() });
+}
+
+async function testOpenRouter(env) {
+  const config = await readConfig(env);
+  const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
+  if (!apiKey) throw httpError("Falta OPENROUTER_API_KEY. Guarda una clave en Admin o en Cloudflare.", 400);
+  const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+  const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": appUrl,
+      "X-Title": "BookForge AI"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Responde solo JSON valido." },
+        { role: "user", content: "{\"ok\":true,\"provider\":\"openrouter\"}" }
+      ],
+      max_tokens: 128,
+      temperature: 0.2,
+      response_format: { type: "json_object" }
+    })
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw httpError(data?.error?.message || "OpenRouter test failed", response.status);
+  return json({ ok: true, model, response: data?.choices?.[0]?.message?.content || "" });
 }
 
 async function readConfig(env) {
