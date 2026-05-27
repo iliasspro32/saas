@@ -212,6 +212,9 @@
               <label>APP URL
                 <input name="appUrl" placeholder="https://bookforge-ai.pages.dev">
               </label>
+              <label>Proveedor IA
+                <input name="aiProvider" placeholder="gemini u openrouter">
+              </label>
               <label>Gemini API Key
                 <input name="geminiApiKey" type="password" placeholder="AIza...">
               </label>
@@ -220,6 +223,15 @@
               </label>
               <label>Gemini max tokens
                 <input name="geminiMaxTokens" placeholder="12000">
+              </label>
+              <label>OpenRouter API Key
+                <input name="openRouterApiKey" type="password" placeholder="sk-or-v1-...">
+              </label>
+              <label>OpenRouter model
+                <input name="openRouterModel" placeholder="openai/gpt-4o-mini">
+              </label>
+              <label>OpenRouter max tokens
+                <input name="openRouterMaxTokens" placeholder="4096">
               </label>
               <label>Stripe secret key
                 <input name="stripeSecretKey" type="password" placeholder="sk_live_...">
@@ -247,6 +259,7 @@
               <button class="primary" type="submit">Guardar configuración</button>
               <button id="loadConfig" type="button">Cargar configuración</button>
               <button id="testGemini" type="button">Probar Gemini</button>
+              <button id="testOpenRouter" type="button">Probar OpenRouter</button>
             </div>
           </form>
         </section>
@@ -302,6 +315,7 @@
           ["Admin protegido", data.adminProtected],
           ["Cloudflare KV", data.kvConfigured],
           ["Gemini API", data.geminiConfigured],
+          ["OpenRouter API", data.openRouterConfigured],
           ["Stripe secret", data.stripeConfigured],
           ["Stripe prices", data.stripePricesConfigured],
           ["Email magic link", data.emailConfigured]
@@ -391,6 +405,15 @@
         try {
           write("Probando Gemini...");
           write(await adminFetch(`${API_BASE}/test-gemini`, { method: "POST", body: "{}" }));
+        } catch (error) {
+          write(error.message);
+        }
+      });
+
+      $("#testOpenRouter").addEventListener("click", async () => {
+        try {
+          write("Probando OpenRouter...");
+          write(await adminFetch(`${API_BASE}/test-openrouter`, { method: "POST", body: "{}" }));
         } catch (error) {
           write(error.message);
         }

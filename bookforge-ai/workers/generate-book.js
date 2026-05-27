@@ -56,7 +56,7 @@ async function generateBook(request, env) {
 }
 
 async function generateStudioBook(input, env) {
-  await ensureGeminiConfigured(env);
+  await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
   const targetWords = Math.max(2500, clean.targetPages * 260);
@@ -94,8 +94,8 @@ Devuelve exactamente:
   "conclusion": "string"
 }`;
 
-  const aiText = await callGemini(env, prompt);
-  const parsed = parseJson(aiText, "Gemini");
+  const aiText = await callBookAi(env, prompt);
+  const parsed = parseJson(aiText.text, aiText.provider);
   const id = "bf-" + crypto.randomUUID().slice(0, 9);
   const book = normalizeStudioBook(parsed, clean, id);
 
@@ -361,6 +361,50 @@ async function callGemini(env, prompt) {
   return text;
 }
 
+async function callOpenRouter(env, prompt) {
+  const config = await getAdminConfig(env);
+  const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
+  const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+  const maxTokens = Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "4096");
+  const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": appUrl,
+      "X-Title": "BookForge AI"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: "Eres un autor y editor profesional. Devuelve solo JSON valido." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.72,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" }
+    })
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = data?.error?.message || "OpenRouter API request failed";
+    throw httpError(`OpenRouter API: ${message}`, response.status);
+  }
+
+  const text = data?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw httpError("OpenRouter no devolvio contenido.", 502);
+  return text;
+}
+
+async function callBookAi(env, prompt) {
+  const config = await getAdminConfig(env);
+  const provider = String(config.aiProvider || env.AI_PROVIDER || "gemini").toLowerCase();
+  if (provider === "openrouter") return { provider: "OpenRouter", text: await callOpenRouter(env, prompt) };
+  return { provider: "Gemini", text: await callGemini(env, prompt) };
+}
+
 function parseClaudeJson(text) {
   return parseJson(text, "Claude");
 }
@@ -425,9 +469,13 @@ function assertEnv(env, keys) {
   }
 }
 
-async function ensureGeminiConfigured(env) {
+async function ensureAiConfigured(env) {
   const config = await getAdminConfig(env);
-  if (!env.GEMINI_API_KEY && !config.geminiApiKey) {
+  const provider = String(config.aiProvider || env.AI_PROVIDER || "gemini").toLowerCase();
+  if (provider === "openrouter" && !env.OPENROUTER_API_KEY && !config.openRouterApiKey) {
+    throw httpError("Falta OPENROUTER_API_KEY. Configurala en Cloudflare o en el panel admin.", 500);
+  }
+  if (provider !== "openrouter" && !env.GEMINI_API_KEY && !config.geminiApiKey) {
     throw httpError("Falta GEMINI_API_KEY. Configúrala en Cloudflare Secrets o en el panel admin.", 500);
   }
 }
@@ -443,6 +491,9 @@ async function health(env) {
     ok: true,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
     geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
+    openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
+    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+    aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });
 }
