@@ -17,14 +17,14 @@
   async function pdfKdp(book) {
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
-    buildBookPdf(doc, book, { width: 432, height: 648, margin: 50, fontSize: 11, lineHeight: 15, style: "kdp" });
+    buildBookPdf(doc, book, { width: 432, height: 648, margin: 54, topMargin: 68, chapterTop: 82, fontSize: 10.7, lineHeight: 16.2, style: "kdp" });
     doc.save(`${slug(book.titulo)}-kdp-6x9.pdf`);
   }
 
   async function pdfEtsy(book) {
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
-    buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 58, fontSize: 12, lineHeight: 17, style: "etsy" });
+    buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 64, topMargin: 82, chapterTop: 96, fontSize: 12, lineHeight: 18, style: "etsy" });
     doc.save(`${slug(book.titulo)}-etsy-a4.pdf`);
   }
 
@@ -46,7 +46,7 @@
     });
 
     addPage(doc, settings, page);
-    let y = settings.margin;
+    let y = settings.topMargin;
     y = drawHeading(doc, "Recursos extra", y, settings, 22, page);
     (book.recursos_extra || []).forEach((item) => {
       y = ensureSpace(doc, y, 90, settings, page);
@@ -55,7 +55,7 @@
     });
 
     addPage(doc, settings, page);
-    y = settings.margin;
+    y = settings.topMargin;
     y = drawHeading(doc, "Conclusión final", y, settings, 22, page);
     y = drawParagraph(doc, text(book.conclusion_final), y, settings, page);
     y = drawHeading(doc, "Sobre el autor", y + 12, settings, 20, page);
@@ -115,7 +115,7 @@
   }
 
   function drawMetadataPage(doc, book, settings, page) {
-    let y = settings.margin;
+    let y = settings.topMargin;
     y = drawHeading(doc, "Información editorial", y, settings, 22, page);
     y = drawInfo(doc, "Plataforma", book.plataforma, y, settings);
     y = drawInfo(doc, "Idioma", book.idioma, y, settings);
@@ -128,7 +128,7 @@
   }
 
   function drawTocPage(doc, book, settings, page) {
-    let y = settings.margin;
+    let y = settings.topMargin;
     y = drawHeading(doc, "Índice", y, settings, 24, page);
     (book.indice || []).forEach((item) => {
       y = ensureSpace(doc, y, 58, settings, page);
@@ -152,21 +152,22 @@
   }
 
   function drawChapter(doc, chapter, settings, page) {
-    let y = settings.margin;
+    let y = settings.chapterTop;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(138, 107, 45);
     doc.text(`CAPÍTULO ${chapter.capitulo}`, settings.margin, y);
-    y += 18;
-    y = drawHeading(doc, text(chapter.titulo), y, settings, 24, page);
+    y += 22;
+    y = drawHeading(doc, text(chapter.titulo), y, settings, settings.style === "etsy" ? 25 : 22, page);
+    y += 10;
     y = drawParagraph(doc, text(chapter.introduccion), y, settings, page);
     (chapter.secciones || []).forEach((section) => {
-      y = drawHeading(doc, text(section.subtitulo), y + 8, settings, 16, page);
+      y = drawHeading(doc, text(section.subtitulo), y + 14, settings, 16, page);
       y = drawParagraph(doc, text(section.contenido), y, settings, page);
     });
-    y = drawHeading(doc, "Conclusión", y + 8, settings, 16, page);
+    y = drawHeading(doc, "Conclusión", y + 14, settings, 16, page);
     y = drawParagraph(doc, text(chapter.conclusion), y, settings, page);
-    y = drawHeading(doc, "Ejercicio práctico", y + 8, settings, 15, page);
+    y = drawHeading(doc, "Ejercicio práctico", y + 14, settings, 15, page);
     drawParagraph(doc, text(chapter.ejercicio), y, settings, page);
   }
 
@@ -186,13 +187,13 @@
   }
 
   function drawHeading(doc, heading, y, settings, size, page) {
-    y = ensureSpace(doc, y, size * 2.2, settings, page);
+    y = ensureSpace(doc, y, size * 3.2, settings, page);
     doc.setFont("times", "bold");
     doc.setFontSize(size);
     doc.setTextColor(17, 24, 39);
     const lines = doc.splitTextToSize(text(heading), settings.width - settings.margin * 2);
     doc.text(lines, settings.margin, y);
-    return y + lines.length * (size + 4) + 8;
+    return y + lines.length * (size + 5) + 12;
   }
 
   function drawInfo(doc, label, value, y, settings) {
@@ -225,13 +226,13 @@
   }
 
   function ensureSpace(doc, y, needed, settings, page) {
-    if (y + needed <= settings.height - settings.margin) return y;
+    if (y + needed <= settings.height - settings.margin - 12) return y;
     doc.addPage();
     page.n += 1;
     setFill(doc, settings.style === "etsy" ? "#fff7ed" : "#fffdf8");
     doc.rect(0, 0, settings.width, settings.height, "F");
     drawPageNumber(doc, settings, page.n - 1);
-    return settings.margin;
+    return settings.topMargin || settings.margin;
   }
 
   function setFill(doc, hex) {
