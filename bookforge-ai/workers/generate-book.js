@@ -56,7 +56,7 @@ async function generateBook(request, env) {
 }
 
 async function generateStudioBook(input, env) {
-  assertEnv(env, ["GEMINI_API_KEY"]);
+  await ensureGeminiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
   const targetWords = Math.max(2500, clean.targetPages * 260);
@@ -330,15 +330,18 @@ async function callClaude(env, prompt, pages, temperature = 0.7) {
 }
 
 async function callGemini(env, prompt) {
-  const model = env.GEMINI_MODEL || "gemini-2.0-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+  const config = await getAdminConfig(env);
+  const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
+  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash";
+  const maxTokens = Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000");
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.72,
-        maxOutputTokens: Number(env.GEMINI_MAX_TOKENS || "12000"),
+        maxOutputTokens: maxTokens,
         responseMimeType: "application/json"
       }
     })
@@ -422,11 +425,24 @@ function assertEnv(env, keys) {
   }
 }
 
-function health(env) {
+async function ensureGeminiConfigured(env) {
+  const config = await getAdminConfig(env);
+  if (!env.GEMINI_API_KEY && !config.geminiApiKey) {
+    throw httpError("Falta GEMINI_API_KEY. Configúrala en Cloudflare Secrets o en el panel admin.", 500);
+  }
+}
+
+async function getAdminConfig(env) {
+  if (!env.BOOKFORGE_KV) return {};
+  return await env.BOOKFORGE_KV.get("admin:config", "json") || {};
+}
+
+async function health(env) {
+  const config = await getAdminConfig(env);
   return json({
     ok: true,
-    geminiConfigured: Boolean(env.GEMINI_API_KEY),
-    geminiModel: env.GEMINI_MODEL || "gemini-2.0-flash",
+    geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
+    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });
 }

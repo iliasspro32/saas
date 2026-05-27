@@ -20,13 +20,16 @@ export default {
 };
 
 async function checkout(request, env) {
-  assertEnv(env, ["STRIPE_SECRET_KEY"]);
+  await ensureStripeConfigured(env);
+  const config = await getAdminConfig(env);
   const user = await requireSession(request, env);
   const { plan } = await request.json();
-  const price = plan === "agency" ? env.STRIPE_AGENCY_PRICE_ID : env.STRIPE_PRO_PRICE_ID;
+  const price = plan === "agency"
+    ? config.stripeAgencyPriceId || env.STRIPE_AGENCY_PRICE_ID
+    : config.stripeProPriceId || env.STRIPE_PRO_PRICE_ID;
   if (!price) return json({ error: "Stripe price is not configured" }, 500);
 
-  const appUrl = env.APP_URL || new URL(request.url).origin;
+  const appUrl = config.appUrl || env.APP_URL || new URL(request.url).origin;
   const body = new URLSearchParams({
     mode: "subscription",
     success_url: `${appUrl}/dashboard.html?checkout=success`,
@@ -43,12 +46,13 @@ async function checkout(request, env) {
 }
 
 async function portal(request, env) {
-  assertEnv(env, ["STRIPE_SECRET_KEY"]);
+  await ensureStripeConfigured(env);
+  const config = await getAdminConfig(env);
   const user = await requireSession(request, env);
   const record = await env.BOOKFORGE_KV.get(`user:${user.email}`, "json");
   if (!record?.stripe_customer_id) return json({ error: "No Stripe customer found" }, 404);
 
-  const appUrl = env.APP_URL || new URL(request.url).origin;
+  const appUrl = config.appUrl || env.APP_URL || new URL(request.url).origin;
   const session = await stripe(env, "/v1/billing_portal/sessions", new URLSearchParams({
     customer: record.stripe_customer_id,
     return_url: `${appUrl}/dashboard.html`
@@ -57,10 +61,12 @@ async function portal(request, env) {
 }
 
 async function webhook(request, env) {
-  assertEnv(env, ["STRIPE_WEBHOOK_SECRET"]);
+  const config = await getAdminConfig(env);
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET || config.stripeWebhookSecret;
+  if (!webhookSecret) throw new Error("Missing environment variable: STRIPE_WEBHOOK_SECRET");
   const raw = await request.text();
   const signature = request.headers.get("stripe-signature") || "";
-  const event = await verifyStripeEvent(raw, signature, env.STRIPE_WEBHOOK_SECRET);
+  const event = await verifyStripeEvent(raw, signature, webhookSecret);
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
@@ -79,10 +85,12 @@ async function webhook(request, env) {
 }
 
 async function stripe(env, path, body) {
+  const config = await getAdminConfig(env);
+  const secret = env.STRIPE_SECRET_KEY || config.stripeSecretKey;
   const response = await fetch(`https://api.stripe.com${path}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      authorization: `Bearer ${secret}`,
       "content-type": "application/x-www-form-urlencoded"
     },
     body
@@ -133,6 +141,16 @@ async function requireSession(request, env) {
 
 function assertEnv(env, keys) {
   for (const key of keys) if (!env[key]) throw new Error(`Missing environment variable: ${key}`);
+}
+
+async function ensureStripeConfigured(env) {
+  const config = await getAdminConfig(env);
+  if (!env.STRIPE_SECRET_KEY && !config.stripeSecretKey) throw new Error("Missing environment variable: STRIPE_SECRET_KEY");
+}
+
+async function getAdminConfig(env) {
+  if (!env.BOOKFORGE_KV) return {};
+  return await env.BOOKFORGE_KV.get("admin:config", "json") || {};
 }
 
 function json(data, status = 200) {

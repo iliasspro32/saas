@@ -19,7 +19,7 @@ STRIPE_AGENCY_PRICE_ID = "price_1BookForgeAgencyMonthly000000"
 [env.production]
 name = "bookforge-ai-generate"
 routes = [
-  { pattern = "bookforge-ai.pages.dev/api/generate-book", custom_domain = false }
+  { pattern = "bookforge-ai.pages.dev/api/generate-book*", custom_domain = false }
 ]
 
 [[env.production.kv_namespaces]]
@@ -53,3 +53,21 @@ id = "00000000000000000000000000000000"
 APP_URL = "https://bookforge-ai.pages.dev"
 STRIPE_PRO_PRICE_ID = "price_1BookForgeProMonthly000000000"
 STRIPE_AGENCY_PRICE_ID = "price_1BookForgeAgencyMonthly000000"
+
+[env.admin]
+name = "bookforge-ai-admin"
+main = "workers/admin.js"
+compatibility_date = "2026-05-27"
+
+routes = [
+  { pattern = "bookforge-ai.pages.dev/api/admin/*", custom_domain = false }
+]
+
+[[env.admin.kv_namespaces]]
+binding = "BOOKFORGE_KV"
+id = "00000000000000000000000000000000"
+
+[env.admin.vars]
+APP_URL = "https://bookforge-ai.pages.dev"
+GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MAX_TOKENS = "12000"

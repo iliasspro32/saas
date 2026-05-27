@@ -21,11 +21,12 @@ export default {
 };
 
 async function requestLink(request, env) {
+  const config = await getAdminConfig(env);
   const { email } = await request.json();
   const cleanEmail = normalizeEmail(email);
   const token = crypto.randomUUID();
   const expiresIn = Number(env.MAGIC_LINK_TTL_SECONDS || "900");
-  const appUrl = env.APP_URL || new URL(request.url).origin;
+  const appUrl = config.appUrl || env.APP_URL || new URL(request.url).origin;
   const link = `${appUrl}/dashboard.html?magic=${token}`;
 
   await env.BOOKFORGE_KV.put(`magic:${token}`, JSON.stringify({ email: cleanEmail, created_at: Date.now() }), { expirationTtl: expiresIn });
@@ -34,8 +35,8 @@ async function requestLink(request, env) {
     await env.BOOKFORGE_KV.put(`user:${cleanEmail}`, JSON.stringify({ email: cleanEmail, plan: "free", created_at: new Date().toISOString() }));
   }
 
-  if (env.RESEND_API_KEY && env.EMAIL_FROM) {
-    await sendMagicEmail(env, cleanEmail, link);
+  if ((env.RESEND_API_KEY || config.resendApiKey) && (env.EMAIL_FROM || config.emailFrom)) {
+    await sendMagicEmail(env, config, cleanEmail, link);
     return json({ ok: true, message: "Revisa tu email para entrar." });
   }
 
@@ -69,12 +70,12 @@ async function logout(request, env) {
   return json({ ok: true });
 }
 
-async function sendMagicEmail(env, email, link) {
+async function sendMagicEmail(env, config, email, link) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${env.RESEND_API_KEY}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.RESEND_API_KEY || config.resendApiKey}` },
     body: JSON.stringify({
-      from: env.EMAIL_FROM,
+      from: env.EMAIL_FROM || config.emailFrom,
       to: email,
       subject: "Tu acceso a BookForge AI",
       html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><h1>Entra en BookForge AI</h1><p>Haz clic para abrir tu dashboard:</p><p><a href="${link}" style="background:#6366f1;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Entrar ahora</a></p><p>Este enlace caduca pronto.</p></div>`
@@ -99,6 +100,11 @@ function normalizeEmail(email) {
   const clean = String(email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error("Email inválido");
   return clean;
+}
+
+async function getAdminConfig(env) {
+  if (!env.BOOKFORGE_KV) return {};
+  return await env.BOOKFORGE_KV.get("admin:config", "json") || {};
 }
 
 function json(data, status = 200) {
