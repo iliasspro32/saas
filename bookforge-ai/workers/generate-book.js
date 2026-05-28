@@ -121,7 +121,7 @@ Devuelve exactamente:
 }
 
 async function expandShortStudioBook(env, book, input) {
-  const targetPerChapter = Math.min(1800, Math.max(850, Math.ceil(input.targetPages * 320 / Math.max(1, input.chaptersCount))));
+  const targetPerChapter = Math.min(1100, Math.max(650, Math.ceil(input.targetPages * 220 / Math.max(1, input.chaptersCount))));
   const languageRule = languageInstruction(input.language);
   const chapters = await Promise.all(book.chapters.map(async (chapter) => {
     if (wordCount(chapter.content) >= targetPerChapter) return chapter;
@@ -505,7 +505,10 @@ async function callOpenRouter(env, prompt) {
 async function callBookAi(env, prompt) {
   const config = await getAdminConfig(env);
   const provider = String(config.aiProvider || env.AI_PROVIDER || "gemini").toLowerCase();
-  if (provider === "openrouter") return { provider: "OpenRouter", text: await callOpenRouter(env, prompt) };
+  const hasGemini = Boolean(env.GEMINI_API_KEY || config.geminiApiKey);
+  const hasOpenRouter = Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey);
+  if (hasGemini && provider !== "openrouter-only") return { provider: "Gemini", text: await callGemini(env, prompt) };
+  if (provider === "openrouter" && hasOpenRouter) return { provider: "OpenRouter", text: await callOpenRouter(env, prompt) };
   return { provider: "Gemini", text: await callGemini(env, prompt) };
 }
 
@@ -619,7 +622,7 @@ async function health(env) {
     geminiModel: professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro", "gemini"),
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
     openRouterModel: professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4", "openrouter"),
-    aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
+    aiProvider: Boolean(env.GEMINI_API_KEY || config.geminiApiKey) ? "gemini" : (config.aiProvider || env.AI_PROVIDER || "gemini"),
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });
 }
