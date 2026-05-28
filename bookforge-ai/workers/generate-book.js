@@ -59,8 +59,9 @@ async function generateStudioBook(input, env) {
   await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
-  const targetWords = Math.max(2500, clean.targetPages * 260);
-  const wordsPerChapter = Math.max(650, Math.ceil(targetWords / chaptersCount));
+  const targetWords = Math.max(8000, clean.targetPages * 450);
+  const wordsPerChapter = Math.max(1200, Math.ceil(targetWords / chaptersCount));
+  const sectionsPerChapter = Math.max(3, Math.min(5, Math.ceil(wordsPerChapter / 900)));
   const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
@@ -71,18 +72,23 @@ Idioma: ${clean.language}
 Autor: ${clean.author}
 Páginas objetivo: ${clean.targetPages}
 Destino editorial: ebook universal multiplataforma
-Extensión objetivo: mínimo ${targetWords} palabras totales, con ${wordsPerChapter}+ palabras por capítulo.
+Extensión objetivo obligatoria: mínimo ${targetWords} palabras totales.
+Cada capítulo debe tener como mínimo ${wordsPerChapter} palabras.
+Cada capítulo debe incluir ${sectionsPerChapter} a 5 secciones internas desarrolladas dentro del campo "content".
 
 Reglas:
 - Escribe todo en el idioma solicitado.
 - No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
-- Capítulos ordenados, coherentes y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
+- Capítulos ordenados, coherentes, largos y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
 - Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
-- Cada capítulo debe dividirse en secciones naturales. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content": "Sección 1.1: ...", "Sección 1.2: ...".
+- Cada sección debe tener entre 300 y 450 palabras o 10 a 15 párrafos breves. No entregues secciones de 2 o 3 párrafos.
 - Usa enumeraciones y viñetas cuando aporten claridad. No uses emojis ni líneas decorativas.
 - Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
 - Evita frases robóticas como "en este capítulo exploraremos" repetidas.
 - Incluye detalles prácticos, ejemplos concretos y transición natural entre ideas.
+- No resumas. No cierres un capítulo hasta haber desarrollado ejemplos, explicación, aplicación práctica y reflexión guiada.
+- Si el límite de salida te obliga a elegir, prioriza capítulos completos y densos sobre metadata larga.
 - No incluyas texto fuera del JSON.
 
 Devuelve exactamente:
@@ -258,7 +264,8 @@ function validateInput(input) {
 }
 
 function buildPrompt(data) {
-  const words = Math.max(12000, data.pages * 280);
+  const words = Math.max(16000, data.pages * 450);
+  const wordsPerChapter = Math.max(1200, Math.ceil(words / data.capitulos));
   return `Crea un ebook profesional completo, humano y universal:
 - Título: ${data.titulo}
 - Autor: ${data.autor}
@@ -271,6 +278,7 @@ function buildPrompt(data) {
 - Páginas objetivo: ${data.pages}+ páginas
 - Público objetivo: ${data.publico}
 - Extensión objetivo: mínimo ${words} palabras totales
+- Extensión por capítulo: mínimo ${wordsPerChapter} palabras por capítulo
 - Dirección de portada: ${data.coverMood}
 - Portada: incluye concepto visual completo, título, subtítulo, autor, paleta, composición y prompt para generar imagen
 
@@ -279,6 +287,8 @@ Reglas editoriales obligatorias:
 - Escribe con voz humana: frases variadas, ejemplos realistas, criterio experto, transición natural entre ideas y cero relleno.
 - Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea el capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
 - Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
+- No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
 - Especifica siempre el número y texto de cada capítulo y cada sección.
 - No uses emojis. No uses líneas decorativas.
 - Usa enumeraciones y viñetas en lugar de emojis cuando ayuden a leer.
@@ -351,7 +361,7 @@ async function callGemini(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
   const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash";
-  const maxTokens = Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000");
+  const maxTokens = Math.max(24000, Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "32000"));
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -383,7 +393,7 @@ async function callOpenRouter(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
   const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
-  const maxTokens = Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "4096");
+  const maxTokens = Math.max(16000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "24000"));
   const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",

@@ -93,7 +93,7 @@ function bindApiConfig() {
       provider: config.provider || "gemini",
       model: config.model || "gemini-2.0-flash",
       apiKey: config.apiKey || "",
-      maxTokens: Number(config.maxTokens || 12000)
+      maxTokens: Number(config.maxTokens || 32000)
     };
     localStorage.setItem("bookforge_api_config", JSON.stringify(state.apiConfig));
     state.demoMode = true;
@@ -115,11 +115,11 @@ function bindApiConfig() {
 function hydrateApiConfigForm() {
   const form = document.getElementById("apiConfigForm");
   if (!form) return;
-  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.0-flash", apiKey: "", maxTokens: 12000 };
+  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.0-flash", apiKey: "", maxTokens: 32000 };
   form.elements.provider.value = config.provider;
   form.elements.model.value = config.model;
   form.elements.apiKey.value = config.apiKey || "";
-  form.elements.maxTokens.value = config.maxTokens || 12000;
+  form.elements.maxTokens.value = config.maxTokens || 32000;
 }
 
 function renderApiStatus() {
@@ -278,7 +278,7 @@ async function callGemini(config, prompt) {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: config.maxTokens || 12000,
+        maxOutputTokens: config.maxTokens || 32000,
         responseMimeType: "application/json"
       }
     })
@@ -300,7 +300,7 @@ async function callOpenAiCompatible(endpoint, config, prompt) {
     body: JSON.stringify({
       model: config.model,
       temperature: 0.7,
-      max_tokens: config.maxTokens || 12000,
+      max_tokens: config.maxTokens || 32000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "Eres un autor y editor profesional. Responde solo JSON válido." },
@@ -324,7 +324,7 @@ async function callAnthropic(config, prompt) {
     },
     body: JSON.stringify({
       model: config.model,
-      max_tokens: config.maxTokens || 12000,
+      max_tokens: config.maxTokens || 32000,
       temperature: 0.7,
       system: "Eres un autor y editor profesional. Responde solo JSON válido.",
       messages: [{ role: "user", content: prompt }]
@@ -337,7 +337,9 @@ async function callAnthropic(config, prompt) {
 
 function buildApiPrompt(payload) {
   const pages = Number(payload.pages || 100);
-  const words = Math.max(9000, pages * 220);
+  const chapters = Math.max(1, Number(payload.capitulos || 10));
+  const words = Math.max(12000, pages * 450);
+  const wordsPerChapter = Math.max(1200, Math.ceil(words / chapters));
   return `Crea un ebook profesional completo, humano y universal, revisado como editor, listo para publicar y exportar en PDF.
 Título: ${payload.titulo}
 Autor: ${payload.autor || "BookForge AI Studio"}
@@ -349,6 +351,7 @@ Destino editorial: ebook universal multiplataforma
 Estilo: ${payload.estilo}
 Páginas objetivo: ${pages}
 Extensión objetivo: ${words}+ palabras
+Extensión por capítulo: mínimo ${wordsPerChapter} palabras por capítulo
 Público objetivo: ${payload.publico || "lectores interesados en el tema"}
 Portada: ${payload.coverMood || "portada comercial premium"}
 
@@ -357,6 +360,9 @@ Reglas obligatorias:
 - Escribe como humano experto: frases variadas, ejemplos concretos, criterio editorial, transiciones naturales y cero relleno.
 - Si el nicho es desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, incluye Capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
 - Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
+- No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
+- No resumas para ahorrar espacio: desarrolla el contenido con profundidad suficiente para que el PDF tenga cuerpo real.
 - Especifica número y texto de cada capítulo, y número/título de cada sección.
 - No uses emojis ni líneas decorativas.
 - Usa enumeraciones y viñetas cuando aporten claridad.
@@ -384,7 +390,7 @@ Devuelve SOLO JSON válido con estas claves:
     "texto_contraportada": "string"
   },
   "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
-  "contenido": [{"capitulo": 0, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "hasta 400 palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
+  "contenido": [{"capitulo": 0, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "300 a 450 palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
   "conclusion_final": "600+ palabras",
   "sobre_el_autor": "string",
