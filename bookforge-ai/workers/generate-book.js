@@ -32,12 +32,12 @@ async function generateBook(request, env) {
   }
 
   assertEnv(env, ["ANTHROPIC_API_KEY"]);
-  const user = await requireSession(request, env);
+  const user = await getOpenTestUser(request, env);
   const clean = validateInput(input);
   const plan = await getPlan(env, user.email);
   const bookCount = Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0");
 
-  if (plan === "free" && bookCount >= Number(env.FREE_BOOK_LIMIT || "1")) {
+  if (!user.testMode && plan === "free" && bookCount >= Number(env.FREE_BOOK_LIMIT || "1")) {
     return json({ error: "Tu plan Free permite 1 libro. Actualiza a Pro para crear más libros." }, 402);
   }
 
@@ -244,7 +244,7 @@ function normalizeStudioBook(book, input, id) {
 
 async function regenerateSection(request, env) {
   assertEnv(env, ["ANTHROPIC_API_KEY"]);
-  const user = await requireSession(request, env);
+  const user = await getOpenTestUser(request, env);
   const { bookId, chapter, sectionTitle, instruction } = await readJson(request);
   if (!bookId || !chapter || !sectionTitle) return json({ error: "bookId, chapter and sectionTitle are required" }, 400);
 
@@ -302,7 +302,7 @@ ${JSON.stringify(book)}`;
 }
 
 async function listBooks(request, env) {
-  const user = await requireSession(request, env);
+  const user = await getOpenTestUser(request, env);
   const ids = await env.BOOKFORGE_KV.get(`books:${user.email}`, "json") || [];
   const items = [];
   for (const id of ids.slice(0, 25)) {
@@ -549,6 +549,18 @@ async function requireSession(request, env) {
   const session = await env.BOOKFORGE_KV.get(`session:${token}`, "json");
   if (!session?.email) throw new Error("Invalid session");
   return session;
+}
+
+async function getOpenTestUser(request, env) {
+  try {
+    return await requireSession(request, env);
+  } catch {
+    return {
+      email: env.TEST_USER_EMAIL || "open-test@bookforge.local",
+      plan: "testing",
+      testMode: true
+    };
+  }
 }
 
 async function getPlan(env, email) {

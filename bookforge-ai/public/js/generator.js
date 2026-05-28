@@ -151,7 +151,9 @@ async function verifyMagicLink() {
 
 async function loadUser() {
   if (!state.token) {
-    if (state.demoMode) state.user = { email: "modo-prueba@bookforge.local", plan: state.apiConfig?.apiKey ? "api-test" : "demo" };
+    state.demoMode = true;
+    state.user = { email: "open-test@bookforge.local", plan: "testing-open" };
+    localStorage.setItem("bookforge_demo_mode", "true");
     return renderAuth();
   }
   try {
@@ -215,10 +217,7 @@ async function generateBook(payload) {
 
   state.demoMode = true;
   localStorage.setItem("bookforge_demo_mode", "true");
-  const book = buildDemoBook(payload);
-  const id = `demo-${Date.now()}`;
-  saveLocalBook(id, book);
-  return { id, book };
+  return apiFetch(API.generate, { method: "POST", body: payload }, false);
 }
 
 function hydrateDraftFromLanding() {

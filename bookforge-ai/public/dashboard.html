@@ -37,12 +37,12 @@
       <div>
         <p class="eyebrow">Book production studio</p>
         <h1>Crea libros completos con portada y todo</h1>
-        <p>Elige extensión de 50 a 300 páginas, idioma y estilo. BookForge genera un manuscrito humano, portada, metadata universal y exportaciones.</p>
+        <p>Modo laboratorio abierto: genera, revisa y mejora libros sin venta, sin checkout y sin bloqueo por registro mientras ajustamos la calidad.</p>
       </div>
       <div class="auth-box" id="authBox">
-        <input id="emailInput" type="email" placeholder="tu@email.com">
+        <input id="emailInput" type="email" placeholder="opcional: tu@email.com">
         <button id="magicButton">Enviar magic link</button>
-        <button id="demoModeButton" type="button">Probar sin registro</button>
+        <button id="demoModeButton" type="button">Modo pruebas abierto</button>
       </div>
       <div class="user-box hidden" id="userBox">
         <span id="userEmail"></span>
@@ -54,7 +54,7 @@
       <div>
         <p class="eyebrow">API Admin</p>
         <h2>Configurar IA para pruebas</h2>
-        <p>Guarda una clave local para probar sin registro. Para producción usa los secretos del Worker.</p>
+        <p>Para pruebas normales usamos los secretos del Worker en Cloudflare. Esta sección solo sirve si quieres probar una API desde el navegador.</p>
       </div>
       <form id="apiConfigForm" class="api-config-form">
         <label>Proveedor
@@ -66,7 +66,7 @@
           </select>
         </label>
         <label>Modelo
-          <input name="model" value="gemini-2.0-flash" placeholder="gemini-2.0-flash, gpt-4o-mini, claude-sonnet-4-20250514">
+          <input name="model" value="gemini-2.5-pro" placeholder="gemini-2.5-pro, anthropic/claude-sonnet-4, claude-sonnet-4-20250514">
         </label>
         <label>API key
           <input name="apiKey" type="password" placeholder="Pega tu API key para pruebas locales">
@@ -102,7 +102,7 @@
         </div>
         <label>Dirección de portada<input name="coverMood" placeholder="Ej: elegante, fondo oscuro, dorado, bestseller financiero"></label>
         <button class="generate-button" id="generateButton" type="submit">Generar Libro Ahora</button>
-        <p class="form-note">Para 200-300 páginas la generación puede tardar más. Se guarda automáticamente en tu historial.</p>
+        <p class="form-note">Modo pruebas abierto. Para mejorar calidad, genera, revisa, ajusta el tema y vuelve a generar.</p>
       </form>
 
       <section class="status-panel">
