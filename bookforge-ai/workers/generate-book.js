@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = "Eres un autor y editor profesional con 20 años publicando en Amazon KDP y plataformas digitales. Generas libros completos, bien estructurados, con contenido de valor real, listos para publicar sin edición adicional. Escribe como experto humano, no como IA. SIEMPRE responde en JSON válido sin texto adicional fuera del JSON.";
+const SYSTEM_PROMPT = "Eres un autor, editor y maquetador profesional con 20 años creando ebooks para múltiples plataformas digitales. Generas libros completos, humanos, bien estructurados, útiles y exportables a PDF/EPUB/DOCX sin depender de Amazon KDP, Etsy ni ninguna tienda concreta. Escribe como experto humano, no como IA. SIEMPRE responde en JSON válido sin texto adicional fuera del JSON.";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,26 +31,28 @@ async function generateBook(request, env) {
     return await generateStudioBook(input, env);
   }
 
-  assertEnv(env, ["ANTHROPIC_API_KEY"]);
-  const user = await requireSession(request, env);
+  await ensureAiConfigured(env);
+  const user = await getOpenTestUser(request, env);
   const clean = validateInput(input);
   const plan = await getPlan(env, user.email);
-  const bookCount = Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0");
+  const bookCount = env.BOOKFORGE_KV ? Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0") : 0;
 
-  if (plan === "free" && bookCount >= Number(env.FREE_BOOK_LIMIT || "1")) {
+  if (!user.testMode && plan === "free" && bookCount >= Number(env.FREE_BOOK_LIMIT || "1")) {
     return json({ error: "Tu plan Free permite 1 libro. Actualiza a Pro para crear más libros." }, 402);
   }
 
   const prompt = buildPrompt(clean);
-  const ai = await callClaude(env, prompt, clean.pages);
-  const book = parseClaudeJson(ai);
+  const ai = await callBookAi(env, prompt);
+  const book = parseJson(ai.text, ai.provider);
   const reviewedBook = await qualityPass(env, book, clean);
   const completed = normalizeBook(reviewedBook, clean, user.email);
   const id = crypto.randomUUID();
 
-  await env.BOOKFORGE_KV.put(`book:${user.email}:${id}`, JSON.stringify(completed));
-  await env.BOOKFORGE_KV.put(`usage:${user.email}:books`, String(bookCount + 1));
-  await addToIndex(env, user.email, id, completed);
+  if (env.BOOKFORGE_KV) {
+    await env.BOOKFORGE_KV.put(`book:${user.email}:${id}`, JSON.stringify(completed));
+    await env.BOOKFORGE_KV.put(`usage:${user.email}:books`, String(bookCount + 1));
+    await addToIndex(env, user.email, id, completed);
+  }
 
   return json({ id, book: completed });
 }
@@ -59,9 +61,11 @@ async function generateStudioBook(input, env) {
   await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
-  const targetWords = Math.max(2500, clean.targetPages * 260);
-  const wordsPerChapter = Math.max(650, Math.ceil(targetWords / chaptersCount));
-  const prompt = `Crea un libro profesional completo en JSON válido.
+  const targetWords = Math.max(9000, clean.targetPages * 420);
+  const wordsPerChapter = Math.max(1000, Math.ceil(targetWords / chaptersCount));
+  const sectionsPerChapter = Math.max(3, Math.min(5, Math.ceil(wordsPerChapter / 900)));
+  const languageRule = languageInstruction(clean.language);
+  const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
 Audiencia: ${clean.audience}
@@ -70,15 +74,24 @@ Capítulos: ${chaptersCount}
 Idioma: ${clean.language}
 Autor: ${clean.author}
 Páginas objetivo: ${clean.targetPages}
-Plataforma: ${clean.targetPlatform}
-Extensión objetivo: mínimo ${targetWords} palabras totales, con ${wordsPerChapter}+ palabras por capítulo.
+Destino editorial: ebook universal multiplataforma
+Extensión objetivo obligatoria: mínimo ${targetWords} palabras totales.
+Cada capítulo debe tener como mínimo ${wordsPerChapter} palabras.
+Cada capítulo debe incluir ${sectionsPerChapter} a 5 secciones internas desarrolladas dentro del campo "content".
 
 Reglas:
-- Escribe todo en el idioma solicitado.
-- Capítulos ordenados, coherentes y sin relleno.
-- Cada capítulo debe tener contenido largo, dividido en párrafos claros y humanos.
+- ${languageRule}
+- No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
+- Capítulos ordenados, coherentes, largos y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
+- Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
+- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content": "Sección 1.1: ...", "Sección 1.2: ...".
+- Cada sección debe tener entre 300 y 450 palabras o 10 a 15 párrafos breves. No entregues secciones de 2 o 3 párrafos.
+- Usa enumeraciones y viñetas cuando aporten claridad. No uses emojis ni líneas decorativas.
+- Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
 - Evita frases robóticas como "en este capítulo exploraremos" repetidas.
 - Incluye detalles prácticos, ejemplos concretos y transición natural entre ideas.
+- No resumas. No cierres un capítulo hasta haber desarrollado ejemplos, explicación, aplicación práctica y reflexión guiada.
+- Si el límite de salida te obliga a elegir, prioriza capítulos completos y densos sobre metadata larga.
 - No incluyas texto fuera del JSON.
 
 Devuelve exactamente:
@@ -97,13 +110,85 @@ Devuelve exactamente:
   const aiText = await callBookAi(env, prompt);
   const parsed = parseJson(aiText.text, aiText.provider);
   const id = "bf-" + crypto.randomUUID().slice(0, 9);
-  const book = normalizeStudioBook(parsed, clean, id);
+  let book = normalizeStudioBook(parsed, clean, id);
+  book = await expandShortStudioBook(env, book, clean);
 
   if (env.BOOKFORGE_KV) {
     await env.BOOKFORGE_KV.put(`studio:${id}`, JSON.stringify(book));
   }
 
   return json({ success: true, book });
+}
+
+async function expandShortStudioBook(env, book, input) {
+  const targetPerChapter = Math.min(1800, Math.max(850, Math.ceil(input.targetPages * 320 / Math.max(1, input.chaptersCount))));
+  const languageRule = languageInstruction(input.language);
+  const chapters = await Promise.all(book.chapters.map(async (chapter) => {
+    if (wordCount(chapter.content) >= targetPerChapter) return chapter;
+    const prompt = `Reescribe y amplía este capítulo para un ebook profesional.
+
+Libro: ${book.title}
+Tema: ${input.topic}
+Audiencia: ${input.audience}
+Tono: ${input.tone}
+Capítulo ${chapter.number}: ${chapter.title}
+
+Contenido actual:
+${chapter.content}
+
+Reglas obligatorias:
+- ${languageRule}
+- Escribe mínimo ${targetPerChapter} palabras.
+- Divide el capítulo con subtítulos claros.
+- Incluye explicación, ejemplos concretos, errores a evitar, pasos prácticos y un ejercicio final.
+- No mezcles idiomas.
+- No menciones que estás reescribiendo.
+- Devuelve SOLO JSON válido: { "content": "texto completo del capítulo" }`;
+
+    try {
+      const aiText = await callBookAi(env, prompt);
+      const expanded = parseJson(aiText.text, aiText.provider);
+      const content = String(expanded.content || "").trim();
+      return content ? { ...chapter, content } : chapter;
+    } catch {
+      return chapter;
+    }
+  }));
+
+  return {
+    ...book,
+    introduction: ensureMinimumText(book.introduction, input, "introducción"),
+    conclusion: ensureMinimumText(book.conclusion, input, "conclusión"),
+    chapters
+  };
+}
+
+function ensureMinimumText(value, input, label) {
+  const text = String(value || "").trim();
+  if (wordCount(text) >= 120) return text;
+  if (isArabicLanguage(input.language)) {
+    return label === "introducción"
+      ? `هذا الكتاب صُمم ليمنح القارئ مسارا واضحا وعمليا حول ${input.topic}. ستجد داخله أفكارا مرتبة، أمثلة قابلة للتطبيق، وخطوات تساعدك على تحويل المعرفة إلى ممارسة يومية. الهدف ليس تقديم كلام عام، بل بناء دليل مفيد يمكن الرجوع إليه عند الحاجة.`
+      : `في النهاية، قيمة هذا الكتاب لا تقاس بعدد الصفحات فقط، بل بقدرة القارئ على تطبيق ما تعلمه خطوة بعد خطوة. ارجع إلى الفصول، نفذ التمارين، وعدل الخطة بما يناسب واقعك حتى تحصل على نتيجة عملية ومستدامة.`;
+  }
+  return label === "introducción"
+    ? `Este libro está diseñado para ofrecer una guía clara, práctica y bien organizada sobre ${input.topic}. A lo largo de sus capítulos encontrarás explicaciones, ejemplos y acciones concretas para convertir la información en aplicación real.`
+    : `La mejor forma de aprovechar este libro es volver a sus capítulos, aplicar los ejercicios y convertir cada idea útil en una acción concreta. El progreso aparece cuando el lector deja de consumir información y empieza a practicarla con criterio.`;
+}
+
+function wordCount(value) {
+  return String(value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function isArabicLanguage(language) {
+  return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
+}
+
+function languageInstruction(language) {
+  if (isArabicLanguage(language)) {
+    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+  }
+  return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
 }
 
 function validateStudioInput(input) {
@@ -124,7 +209,7 @@ function validateStudioInput(input) {
     language,
     author: String(input.author || "Autor IA").slice(0, 120),
     targetPages,
-    targetPlatform: String(input.targetPlatform || "kdp").slice(0, 40)
+    targetPlatform: String(input.targetPlatform || "universal").slice(0, 40)
   };
 }
 
@@ -160,8 +245,8 @@ function normalizeStudioBook(book, input, id) {
 }
 
 async function regenerateSection(request, env) {
-  assertEnv(env, ["ANTHROPIC_API_KEY"]);
-  const user = await requireSession(request, env);
+  await ensureAiConfigured(env);
+  const user = await getOpenTestUser(request, env);
   const { bookId, chapter, sectionTitle, instruction } = await readJson(request);
   if (!bookId || !chapter || !sectionTitle) return json({ error: "bookId, chapter and sectionTitle are required" }, 400);
 
@@ -177,29 +262,32 @@ Instrucción adicional: ${instruction || "Mejorar claridad, profundidad y valor 
 Devuelve SOLO JSON válido:
 { "subtitulo": "${sectionTitle}", "contenido": "texto completo de 700+ palabras listo para publicar" }`;
 
-  const ai = await callClaude(env, prompt, 25);
-  return json({ section: parseJson(ai, "Claude") });
+  const ai = await callBookAi(env, prompt);
+  return json({ section: parseJson(ai.text, ai.provider) });
 }
 
 async function qualityPass(env, book, input) {
-  const prompt = `Actúa como editor humano senior, corrector ortotipográfico y editor comercial de KDP.
+  const prompt = `Actúa como editor humano senior, corrector ortotipográfico y editor comercial multiplataforma.
 Revisa este libro completo en ${input.idioma} y devuelve el MISMO JSON completo, corregido y mejorado.
 
 Objetivo editorial:
 - Que el libro parezca escrito por un humano experto, no por IA.
 - Eliminar frases robóticas, relleno, repeticiones, contradicciones y conclusiones genéricas.
 - Corregir gramática, ortografía, puntuación, concordancia, tono y fluidez.
-- Mantener contenido útil, específico y publicable.
-- Mejorar títulos de capítulos, subtítulo, descripción KDP, keywords y portada.
+- Mantener contenido útil, específico y publicable en cualquier plataforma digital.
+- Quitar sesgos hacia KDP, Etsy o tiendas concretas salvo que el usuario lo pida explícitamente.
+- Mejorar títulos de capítulos, subtítulo, descripción editorial, keywords, categoría editorial y portada.
+- Verificar que exista capítulo 0 de términos y avisos importantes cuando el nicho lo necesite.
+- Confirmar que las secciones usen tono humano, máximo aproximado de 400 palabras, viñetas/enumeraciones donde convenga y ejercicios interactivos.
 - Mantener o ampliar el valor de cada sección; no resumir el libro.
 - Respetar idioma: ${input.idioma}.
-- Respetar plataforma: ${input.plataforma}.
+- Respetar destino editorial universal multiplataforma.
 - Respetar páginas estimadas: ${input.pages}+.
 
 Reglas estrictas:
 - Devuelve SOLO JSON válido.
 - Conserva exactamente estas claves principales:
-titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_kdp, keywords, categoria_kdp, portada, indice, contenido, recursos_extra, conclusion_final, sobre_el_autor, paginas_estimadas, control_calidad
+titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_editorial, keywords, categoria_editorial, portada, indice, contenido, recursos_extra, conclusion_final, sobre_el_autor, paginas_estimadas, control_calidad
 - Añade "control_calidad" con:
 {
   "estado": "revisado",
@@ -211,12 +299,13 @@ titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_kdp, keywords, c
 JSON a revisar:
 ${JSON.stringify(book)}`;
 
-  const ai = await callClaude(env, prompt, input.pages, 0.35);
-  return parseJson(ai, "Claude");
+  const ai = await callBookAi(env, prompt);
+  return parseJson(ai.text, ai.provider);
 }
 
 async function listBooks(request, env) {
-  const user = await requireSession(request, env);
+  const user = await getOpenTestUser(request, env);
+  if (!env.BOOKFORGE_KV) return json({ books: [] });
   const ids = await env.BOOKFORGE_KV.get(`books:${user.email}`, "json") || [];
   const items = [];
   for (const id of ids.slice(0, 25)) {
@@ -251,21 +340,36 @@ function validateInput(input) {
 }
 
 function buildPrompt(data) {
-  const words = Math.max(12000, data.pages * 280);
-  return `Crea un libro profesional completo:
+  const words = Math.max(16000, data.pages * 450);
+  const wordsPerChapter = Math.max(1200, Math.ceil(words / data.capitulos));
+  return `Crea un ebook profesional completo, humano y universal:
 - Título: ${data.titulo}
 - Autor: ${data.autor}
 - Tema: ${data.tema}
 - Tipo: ${data.tipo}
 - Capítulos: ${data.capitulos}
 - Idioma: ${data.idioma}
-- Plataforma: ${data.plataforma}
+- Destino editorial: ebook universal multiplataforma, exportable en PDF, EPUB y DOCX
 - Estilo interior: ${data.estilo}
 - Páginas objetivo: ${data.pages}+ páginas
 - Público objetivo: ${data.publico}
 - Extensión objetivo: mínimo ${words} palabras totales
+- Extensión por capítulo: mínimo ${wordsPerChapter} palabras por capítulo
 - Dirección de portada: ${data.coverMood}
 - Portada: incluye concepto visual completo, título, subtítulo, autor, paleta, composición y prompt para generar imagen
+
+Reglas editoriales obligatorias:
+- No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o descarga PDF.
+- Escribe con voz humana: frases variadas, ejemplos realistas, criterio experto, transición natural entre ideas y cero relleno.
+- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea el capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
+- No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
+- Especifica siempre el número y texto de cada capítulo y cada sección.
+- No uses emojis. No uses líneas decorativas.
+- Usa enumeraciones y viñetas en lugar de emojis cuando ayuden a leer.
+- Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas, diarios de trabajo o acciones guiadas.
+- Mantén continuidad para que el lector sepa dónde está y pueda continuar el libro sin perder el hilo.
 
 Devuelve SOLO este JSON:
 {
@@ -273,11 +377,11 @@ Devuelve SOLO este JSON:
   "subtitulo": "string",
   "autor": "string",
   "idioma": "string",
-  "plataforma": "string",
+  "plataforma": "Universal",
   "tipo": "string",
-  "descripcion_kdp": "200 palabras optimizada para Amazon",
+  "descripcion_editorial": "200 palabras válidas para cualquier plataforma",
   "keywords": ["7 keywords"],
-  "categoria_kdp": "string",
+  "categoria_editorial": "string",
   "portada": {
     "titulo_portada": "string",
     "subtitulo_portada": "string",
@@ -288,15 +392,15 @@ Devuelve SOLO este JSON:
     "prompt_imagen": "prompt detallado para generar la imagen de portada sin texto incrustado",
     "texto_contraportada": "texto comercial de contraportada"
   },
-  "indice": [{"capitulo": 1, "titulo": "string", "descripcion": "string"}],
+  "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
   "contenido": [
     {
-      "capitulo": 1,
+      "capitulo": 0,
       "titulo": "string",
       "introduccion": "string de 300+ palabras",
-      "secciones": [{"subtitulo": "string", "contenido": "string de 700+ palabras"}],
+      "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "string de hasta 400 palabras, con párrafos humanos y viñetas si corresponde"}],
       "conclusion": "string de 250+ palabras",
-      "ejercicio": "actividad, reflexión, plantilla o tarea práctica"
+      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica"
     }
   ],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
@@ -332,8 +436,8 @@ async function callClaude(env, prompt, pages, temperature = 0.7) {
 async function callGemini(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
-  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash";
-  const maxTokens = Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000");
+  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro";
+  const maxTokens = Math.max(24000, Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "32000"));
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -364,8 +468,8 @@ async function callGemini(env, prompt) {
 async function callOpenRouter(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
-  const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
-  const maxTokens = Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "4096");
+  const model = config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
+  const maxTokens = Math.max(24000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "32000"));
   const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -450,7 +554,20 @@ async function requireSession(request, env) {
   return session;
 }
 
+async function getOpenTestUser(request, env) {
+  try {
+    return await requireSession(request, env);
+  } catch {
+    return {
+      email: env.TEST_USER_EMAIL || "open-test@bookforge.local",
+      plan: "testing",
+      testMode: true
+    };
+  }
+}
+
 async function getPlan(env, email) {
+  if (!env.BOOKFORGE_KV) return "testing";
   const user = await env.BOOKFORGE_KV.get(`user:${email}`, "json");
   return user?.plan || "free";
 }
@@ -490,9 +607,9 @@ async function health(env) {
   return json({
     ok: true,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
-    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
+    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro",
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
-    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4",
     aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });

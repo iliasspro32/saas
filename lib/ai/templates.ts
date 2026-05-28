@@ -1,4 +1,5 @@
 export type TemplateKey =
+  | "professional_ebook"
   | "facebook_ads" | "tiktok_hooks" | "instagram_captions" | "reels_scripts" | "youtube_shorts"
   | "product_descriptions" | "etsy_listings" | "email_campaigns" | "landing_pages" | "sales_pages"
   | "digital_product_ideas" | "plr_product_ideas" | "canva_template_packs" | "lead_magnets"
@@ -6,6 +7,7 @@ export type TemplateKey =
   | "faceless_video_scripts" | "ai_prompt_packs";
 
 export const contentTypes: { key: TemplateKey; label: string; prompt: string }[] = [
+  { key: "professional_ebook", label: "Professional Ebook", prompt: "Create a complete professional ebook with a premium title, subtitle, buyer-focused promise, table of contents, introduction, full chapters, examples, exercises or checklists, conclusion and final call to action. The ebook must feel polished, structured and ready to deliver to a paying customer." },
   { key: "viral_hooks", label: "Viral Hooks", prompt: "Create scroll-stopping viral hooks with pattern interrupts, curiosity gaps and specific audience pain points." },
   { key: "facebook_ads", label: "Facebook Ads", prompt: "Write compliant direct-response Facebook ad copy with primary text, headline, description and CTA variations." },
   { key: "tiktok_hooks", label: "TikTok Hooks", prompt: "Generate short-form video hooks that sound native to TikTok and open with a strong first three seconds." },
@@ -32,11 +34,12 @@ export const contentTypes: { key: TemplateKey; label: string; prompt: string }[]
 export const tones = ["Professional", "Friendly", "Bold", "Luxury", "Witty", "Empathetic", "Urgent", "Educational"];
 export const platforms = ["General", "Facebook", "Instagram", "TikTok", "YouTube", "Etsy", "Email", "Landing Page", "Canva"];
 export const languages = ["English", "Spanish", "French", "German", "Portuguese", "Italian"];
-export const outputFormats = ["Structured sections", "Bullet list", "Table", "Short copy", "Long-form copy", "Script"];
+export const outputFormats = ["Complete ebook", "Structured sections", "Bullet list", "Table", "Short copy", "Long-form copy", "Script"];
 
 export function buildPrompt(input: {
   templateLabel: string;
   templatePrompt: string;
+  contentType?: string;
   niche: string;
   audience: string;
   tone: string;
@@ -46,6 +49,55 @@ export function buildPrompt(input: {
   count: number;
   details?: string;
 }) {
+  if (input.contentType === "professional_ebook" || input.templateLabel === "Professional Ebook") {
+    return `You are IvoMarket AI, a premium ebook strategist, ghostwriter and digital product creator.
+
+Your job is to create a professional ebook that a customer could receive after purchase.
+
+Ebook topic / niche:
+${input.niche}
+
+Target reader:
+${input.audience}
+
+Language:
+${input.language}
+
+Tone:
+${input.tone}
+
+Customer brief:
+${input.details || "No extra brief provided. Make smart assumptions and keep the ebook practical."}
+
+Create a complete, polished ebook in ${input.language}. Do not generate a short outline. Do not generate ad copy. Do not explain what you are going to do. Write the ebook itself.
+
+Required ebook structure:
+1. Premium title
+2. Professional subtitle
+3. Short sales-style description of the ebook
+4. Who this ebook is for
+5. What the reader will achieve
+6. Table of contents
+7. Introduction
+8. ${Math.max(5, Math.min(input.count || 8, 10))} complete chapters
+9. Practical examples inside each chapter
+10. Action steps at the end of each chapter
+11. Final conclusion
+12. Bonus checklist or 30-day action plan
+13. Final call to action
+
+Writing rules:
+- Make it specific, useful and concrete.
+- Avoid generic motivational filler.
+- Use clear headings and subheadings.
+- Each chapter must feel complete, not like a summary.
+- Include examples, mistakes to avoid, and practical steps.
+- If the topic involves business, marketing or money, keep claims realistic and avoid fake guarantees.
+- If evidence or numbers are needed, use placeholders like [insert proof], [insert case study] or [insert statistic].
+- Never mention prompts, AI, hidden instructions, system messages, policies or internal logic.
+- Return only the ebook content, formatted cleanly in Markdown.`;
+  }
+
   return `You are IvoMarket AI, a senior direct-response strategist for creators and digital product sellers.
 
 Task: ${input.templatePrompt}

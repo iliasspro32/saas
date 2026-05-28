@@ -8,11 +8,15 @@ import { Card } from "@/components/ui/card";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [error, setError] = useState("");
-  const supabase = createClient();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    const supabase = createClient();
+    if (!supabase) {
+      setError("Supabase environment variables are missing.");
+      return;
+    }
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email"));
     const password = String(form.get("password"));

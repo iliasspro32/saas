@@ -3,13 +3,70 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BookForge AI Studio - Generador de libros con IA</title>
-    <meta name="description" content="Crea libros completos con IA, portada, capítulos, modo lectura, exportación PDF y flujo para publicar en Amazon KDP, Etsy y Gumroad.">
-    <base href="bookforge-ai/public/studio/">
-    <script type="module" crossorigin src="./assets/index-DYQ05SGR.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CKQ93drF.css">
+    <title>BookForge AI - Laboratorio abierto</title>
+    <meta name="description" content="Laboratorio abierto para probar y mejorar la generación de ebooks profesionales con IA.">
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #050711;
+        color: #f8fafc;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(79, 70, 229, .28), transparent 30%),
+          radial-gradient(circle at 80% 30%, rgba(245, 158, 11, .18), transparent 28%),
+          #050711;
+      }
+
+      main {
+        width: min(620px, calc(100% - 32px));
+        border: 1px solid rgba(148, 163, 184, .22);
+        border-radius: 18px;
+        padding: 32px;
+        background: rgba(15, 23, 42, .82);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, .38);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(32px, 6vw, 54px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      p {
+        color: #cbd5e1;
+        line-height: 1.7;
+        margin: 18px 0 26px;
+      }
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 46px;
+        padding: 0 18px;
+        border-radius: 10px;
+        background: #f59e0b;
+        color: #111827;
+        text-decoration: none;
+        font-weight: 900;
+      }
+    </style>
+    <script>
+      location.replace("/bookforge-ai/public/dashboard.html" + location.search);
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <main>
+      <h1>BookForge AI</h1>
+      <p>Abriendo el laboratorio de pruebas para generar, revisar y mejorar ebooks profesionales.</p>
+      <a href="/bookforge-ai/public/dashboard.html">Abrir laboratorio</a>
+    </main>
   </body>
 </html>

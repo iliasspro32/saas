@@ -2,10 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0; url=studio/index.html">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard - BookForge AI</title>
-  <script>location.replace("studio/index.html" + location.search);</script>
+  <title>BookForge AI - Laboratorio abierto</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
@@ -37,12 +35,12 @@
       <div>
         <p class="eyebrow">Book production studio</p>
         <h1>Crea libros completos con portada y todo</h1>
-        <p>Elige extensión de 50 a 300 páginas, idioma, plataforma y estilo. BookForge genera manuscrito, portada, metadata y exportaciones.</p>
+        <p>Modo laboratorio abierto: genera, revisa y mejora libros sin venta, sin checkout y sin bloqueo por registro mientras ajustamos la calidad.</p>
       </div>
       <div class="auth-box" id="authBox">
-        <input id="emailInput" type="email" placeholder="tu@email.com">
+        <input id="emailInput" type="email" placeholder="opcional: tu@email.com">
         <button id="magicButton">Enviar magic link</button>
-        <button id="demoModeButton" type="button">Probar sin registro</button>
+        <button id="demoModeButton" type="button">Modo pruebas abierto</button>
       </div>
       <div class="user-box hidden" id="userBox">
         <span id="userEmail"></span>
@@ -54,7 +52,7 @@
       <div>
         <p class="eyebrow">API Admin</p>
         <h2>Configurar IA para pruebas</h2>
-        <p>Guarda una clave local para probar sin registro. Para producción usa los secretos del Worker.</p>
+        <p>Para pruebas normales usamos los secretos del Worker en Cloudflare. Esta sección solo sirve si quieres probar una API desde el navegador.</p>
       </div>
       <form id="apiConfigForm" class="api-config-form">
         <label>Proveedor
@@ -66,13 +64,13 @@
           </select>
         </label>
         <label>Modelo
-          <input name="model" value="gemini-2.0-flash" placeholder="gemini-2.0-flash, gpt-4o-mini, claude-sonnet-4-20250514">
+          <input name="model" value="gemini-2.5-pro" placeholder="gemini-2.5-pro, anthropic/claude-sonnet-4, claude-sonnet-4-20250514">
         </label>
         <label>API key
           <input name="apiKey" type="password" placeholder="Pega tu API key para pruebas locales">
         </label>
         <label>Máx. tokens
-          <input name="maxTokens" type="number" min="1000" max="64000" value="12000">
+          <input name="maxTokens" type="number" min="1000" max="64000" value="32000">
         </label>
         <div class="api-actions">
           <button type="submit">Guardar API</button>
@@ -86,7 +84,7 @@
       <form class="generator-card" id="bookForm">
         <div class="form-head">
           <h2>Nuevo libro</h2>
-          <span>100+ páginas listo para vender</span>
+          <span>100+ páginas listo para publicar en cualquier plataforma</span>
         </div>
         <label>Título del libro<input name="titulo" required placeholder="Ej: Finanzas personales para principiantes"></label>
         <label>Autor<input name="autor" placeholder="Tu nombre o marca editorial"></label>
@@ -97,24 +95,24 @@
           <label>Capítulos<select name="capitulos"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option><option>40</option></select></label>
           <label>Páginas objetivo<select name="pages"><option>50</option><option selected>100</option><option>150</option><option>200</option><option>250</option><option>300</option></select></label>
           <label>Idioma<select name="idioma"><option>Español</option><option>Inglés</option><option>Portugués</option><option>Francés</option><option>Alemán</option><option>Italiano</option><option>Árabe</option><option>Holandés</option></select></label>
-          <label>Plataforma<select name="plataforma"><option>KDP</option><option>Etsy</option><option>Gumroad</option><option>Mi web</option></select></label>
+          <label>Destino<select name="plataforma"><option selected>Universal</option><option>Mi web</option><option>Newsletter</option><option>Academia</option><option>Marketplace digital</option></select></label>
           <label>Estilo<select name="estilo"><option>Minimalista</option><option>Corporativo</option><option>Colorido</option><option>Elegante</option><option>Infantil</option><option>Editorial premium</option></select></label>
         </div>
         <label>Dirección de portada<input name="coverMood" placeholder="Ej: elegante, fondo oscuro, dorado, bestseller financiero"></label>
-        <button class="generate-button" id="generateButton" type="submit">⚡ Generar Libro Ahora</button>
-        <p class="form-note">Para 200-300 páginas la generación puede tardar más. Se guarda automáticamente en tu historial.</p>
+        <button class="generate-button" id="generateButton" type="submit">Generar Libro Ahora</button>
+        <p class="form-note">Modo pruebas abierto. Para mejorar calidad, genera, revisa, ajusta el tema y vuelve a generar.</p>
       </form>
 
       <section class="status-panel">
         <div class="progress-shell">
           <div class="progress-ring" id="progressRing">0%</div>
           <h2 id="statusTitle">Listo para forjar tu libro</h2>
-          <p id="statusText">Completa el formulario y genera un libro profesional con portada, contenido largo y metadata de venta.</p>
+          <p id="statusText">Completa el formulario y genera un libro profesional con portada, contenido humano y metadata universal.</p>
         </div>
         <div class="mini-stats">
           <div><strong id="statPages">100</strong><span>Páginas</span></div>
           <div><strong id="statLang">ES</strong><span>Idioma</span></div>
-          <div><strong id="statFormat">KDP</strong><span>Destino</span></div>
+          <div><strong id="statFormat">Universal</strong><span>Destino</span></div>
         </div>
       </section>
     </section>
@@ -126,9 +124,8 @@
           <h2 id="previewTitle">Libro generado</h2>
         </div>
         <div class="export-actions">
-          <button data-export="pdf">Exportar PDF</button>
-          <button data-export="kdp">PDF KDP</button>
-          <button data-export="etsy">PDF Etsy</button>
+          <button data-export="pdf">PDF universal</button>
+          <button data-export="print">PDF impresión</button>
           <button data-export="epub">EPUB</button>
           <button data-export="docx">DOCX</button>
         </div>
