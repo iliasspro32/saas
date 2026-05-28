@@ -30,11 +30,37 @@ export async function POST(request: NextRequest) {
       audience: sanitizeText(parsed.audience, 220),
       details: sanitizeText(parsed.details || "", 1200)
     };
-    const prompt = buildPrompt({ ...safe, templateLabel: template.label, templatePrompt: template.prompt });
+    const prompt = buildPrompt({ ...safe, contentType: template.key, templateLabel: template.label, templatePrompt: template.prompt });
     const provider = getProvider("openrouter");
 
     const started = Date.now();
-    const result = await provider.generate({ ...safe, prompt, maxTokens: 2200 });
+    const maxTokens = template.key === "professional_ebook" ? 12000 : 2200;
+    const ebookFallbackModels = [
+      "anthropic/claude-sonnet-4",
+      "openai/gpt-4.1",
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "openai/gpt-4o-mini"
+    ];
+    const modelsToTry = template.key === "professional_ebook"
+      ? [safe.model, ...ebookFallbackModels.filter((model) => model !== safe.model)]
+      : [safe.model];
+    let result: Awaited<ReturnType<typeof provider.generate>> | null = null;
+    let usedModel = safe.model;
+    let lastError: unknown;
+
+    for (const model of modelsToTry) {
+      try {
+        result = await provider.generate({ ...safe, model, prompt, maxTokens });
+        usedModel = model;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (template.key !== "professional_ebook") throw error;
+      }
+    }
+
+    if (!result) throw lastError instanceof Error ? lastError : new Error("AI generation failed");
     const latencyMs = Date.now() - started;
     if (!result.output) throw new Error("AI provider returned an empty response");
 
@@ -44,7 +70,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         content_type: template.key,
         provider: provider.name,
-        model: safe.model,
+        model: usedModel,
         input: safe,
         output: result.output,
         tokens_used: result.tokens

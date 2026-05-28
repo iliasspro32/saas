@@ -48,7 +48,7 @@ export function GeneratorForm() {
           <StudioMode icon={Sparkles} label="Copy" />
         </div>
         <form onSubmit={submit} className="space-y-4">
-          <Input name="productUrl" label="Product URL" placeholder="https://your-store.com/product" />
+          <Input name="productUrl" label="Product URL" placeholder="https://your-store.com/product" required={false} />
           <Select name="contentType" label="Asset type" options={contentTypes.map((item) => ({ value: item.key, label: item.label }))} />
           <Input name="niche" label="Niche" placeholder="Example: printables for busy moms" />
           <Input name="audience" label="Target audience" placeholder="Example: Etsy sellers who need fast listings" />
@@ -103,7 +103,7 @@ function StudioMode({ icon: Icon, label, active }: { icon: React.ElementType; la
 
 function Input(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   const { label, ...rest } = props;
-  return <label className="block text-sm font-medium">{label}<input required className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950" {...rest} /></label>;
+  return <label className="block text-sm font-medium">{label}<input required={rest.required ?? true} className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950" {...rest} /></label>;
 }
 
 function Select({ label, options, ...props }: { label: string; name: string; options: (string | { value: string; label: string })[] }) {
