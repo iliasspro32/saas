@@ -31,26 +31,28 @@ async function generateBook(request, env) {
     return await generateStudioBook(input, env);
   }
 
-  assertEnv(env, ["ANTHROPIC_API_KEY"]);
+  await ensureAiConfigured(env);
   const user = await getOpenTestUser(request, env);
   const clean = validateInput(input);
   const plan = await getPlan(env, user.email);
-  const bookCount = Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0");
+  const bookCount = env.BOOKFORGE_KV ? Number((await env.BOOKFORGE_KV.get(`usage:${user.email}:books`)) || "0") : 0;
 
   if (!user.testMode && plan === "free" && bookCount >= Number(env.FREE_BOOK_LIMIT || "1")) {
     return json({ error: "Tu plan Free permite 1 libro. Actualiza a Pro para crear más libros." }, 402);
   }
 
   const prompt = buildPrompt(clean);
-  const ai = await callClaude(env, prompt, clean.pages);
-  const book = parseClaudeJson(ai);
+  const ai = await callBookAi(env, prompt);
+  const book = parseJson(ai.text, ai.provider);
   const reviewedBook = await qualityPass(env, book, clean);
   const completed = normalizeBook(reviewedBook, clean, user.email);
   const id = crypto.randomUUID();
 
-  await env.BOOKFORGE_KV.put(`book:${user.email}:${id}`, JSON.stringify(completed));
-  await env.BOOKFORGE_KV.put(`usage:${user.email}:books`, String(bookCount + 1));
-  await addToIndex(env, user.email, id, completed);
+  if (env.BOOKFORGE_KV) {
+    await env.BOOKFORGE_KV.put(`book:${user.email}:${id}`, JSON.stringify(completed));
+    await env.BOOKFORGE_KV.put(`usage:${user.email}:books`, String(bookCount + 1));
+    await addToIndex(env, user.email, id, completed);
+  }
 
   return json({ id, book: completed });
 }
@@ -243,7 +245,7 @@ function normalizeStudioBook(book, input, id) {
 }
 
 async function regenerateSection(request, env) {
-  assertEnv(env, ["ANTHROPIC_API_KEY"]);
+  await ensureAiConfigured(env);
   const user = await getOpenTestUser(request, env);
   const { bookId, chapter, sectionTitle, instruction } = await readJson(request);
   if (!bookId || !chapter || !sectionTitle) return json({ error: "bookId, chapter and sectionTitle are required" }, 400);
@@ -260,8 +262,8 @@ Instrucción adicional: ${instruction || "Mejorar claridad, profundidad y valor 
 Devuelve SOLO JSON válido:
 { "subtitulo": "${sectionTitle}", "contenido": "texto completo de 700+ palabras listo para publicar" }`;
 
-  const ai = await callClaude(env, prompt, 25);
-  return json({ section: parseJson(ai, "Claude") });
+  const ai = await callBookAi(env, prompt);
+  return json({ section: parseJson(ai.text, ai.provider) });
 }
 
 async function qualityPass(env, book, input) {
@@ -297,12 +299,13 @@ titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_editorial, keywo
 JSON a revisar:
 ${JSON.stringify(book)}`;
 
-  const ai = await callClaude(env, prompt, input.pages, 0.35);
-  return parseJson(ai, "Claude");
+  const ai = await callBookAi(env, prompt);
+  return parseJson(ai.text, ai.provider);
 }
 
 async function listBooks(request, env) {
   const user = await getOpenTestUser(request, env);
+  if (!env.BOOKFORGE_KV) return json({ books: [] });
   const ids = await env.BOOKFORGE_KV.get(`books:${user.email}`, "json") || [];
   const items = [];
   for (const id of ids.slice(0, 25)) {
@@ -564,6 +567,7 @@ async function getOpenTestUser(request, env) {
 }
 
 async function getPlan(env, email) {
+  if (!env.BOOKFORGE_KV) return "testing";
   const user = await env.BOOKFORGE_KV.get(`user:${email}`, "json");
   return user?.plan || "free";
 }
