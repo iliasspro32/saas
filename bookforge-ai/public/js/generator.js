@@ -692,7 +692,7 @@ async function apiFetch(url, options = {}, auth = true) {
     body: options.body ? JSON.stringify(options.body) : undefined
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Error de conexión");
+  if (!response.ok) throw new Error(data.error || `Error de conexión (${response.status})`);
   return data;
 }
 
