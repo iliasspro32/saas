@@ -468,8 +468,8 @@ async function callGemini(env, prompt) {
 async function callOpenRouter(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
-  const model = professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4", "openrouter");
-  const maxTokens = Math.max(24000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "32000"));
+  const model = professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1", "openrouter");
+  const maxTokens = Math.max(18000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "24000"));
   const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -507,8 +507,14 @@ async function callBookAi(env, prompt) {
   const provider = String(config.aiProvider || env.AI_PROVIDER || "gemini").toLowerCase();
   const hasGemini = Boolean(env.GEMINI_API_KEY || config.geminiApiKey);
   const hasOpenRouter = Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey);
-  if (hasGemini && provider !== "openrouter-only") return { provider: "Gemini", text: await callGemini(env, prompt) };
-  if (provider === "openrouter" && hasOpenRouter) return { provider: "OpenRouter", text: await callOpenRouter(env, prompt) };
+  if (hasGemini && provider !== "openrouter-only") {
+    try {
+      return { provider: "Gemini", text: await callGemini(env, prompt) };
+    } catch (error) {
+      if (!hasOpenRouter || !isRetryableProviderError(error)) throw error;
+    }
+  }
+  if (hasOpenRouter) return { provider: "OpenRouter", text: await callOpenRouter(env, prompt) };
   return { provider: "Gemini", text: await callGemini(env, prompt) };
 }
 
@@ -516,9 +522,14 @@ function professionalModel(model, provider) {
   const value = String(model || "").trim();
   const weak = /gpt-4o-mini|flash-lite|gemini-2\.0-flash|gemini-flash-1\.5|deepseek-chat/i.test(value);
   if (!value || weak) {
-    return provider === "openrouter" ? "anthropic/claude-sonnet-4" : "gemini-2.5-pro";
+    return provider === "openrouter" ? "openai/gpt-4.1" : "gemini-2.5-pro";
   }
   return value;
+}
+
+function isRetryableProviderError(error) {
+  const message = String(error?.message || "");
+  return /quota|rate|limit|429|overloaded|temporarily|timeout/i.test(message);
 }
 
 function parseClaudeJson(text) {
@@ -621,7 +632,7 @@ async function health(env) {
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
     geminiModel: professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro", "gemini"),
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
-    openRouterModel: professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4", "openrouter"),
+    openRouterModel: professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1", "openrouter"),
     aiProvider: Boolean(env.GEMINI_API_KEY || config.geminiApiKey) ? "gemini" : (config.aiProvider || env.AI_PROVIDER || "gemini"),
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });

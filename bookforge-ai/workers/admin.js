@@ -67,7 +67,7 @@ async function saveConfig(request, env) {
     geminiModel: clean(incoming.geminiModel, current.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro"),
     geminiMaxTokens: clean(incoming.geminiMaxTokens, current.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000"),
     aiProvider: clean(incoming.aiProvider, current.aiProvider || env.AI_PROVIDER || "gemini"),
-    openRouterModel: clean(incoming.openRouterModel, current.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4"),
+    openRouterModel: clean(incoming.openRouterModel, current.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1"),
     openRouterMaxTokens: clean(incoming.openRouterMaxTokens, current.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "4096"),
     stripeProPriceId: clean(incoming.stripeProPriceId, current.stripeProPriceId || env.STRIPE_PRO_PRICE_ID || ""),
     stripeAgencyPriceId: clean(incoming.stripeAgencyPriceId, current.stripeAgencyPriceId || env.STRIPE_AGENCY_PRICE_ID || ""),
@@ -96,7 +96,7 @@ async function status(env) {
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
     geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro",
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
-    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4",
+    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1",
     aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY || config.stripeSecretKey),
     stripePricesConfigured: Boolean((env.STRIPE_PRO_PRICE_ID || config.stripeProPriceId) && (env.STRIPE_AGENCY_PRICE_ID || config.stripeAgencyPriceId)),
@@ -128,7 +128,7 @@ async function testOpenRouter(env) {
   const config = await readConfig(env);
   const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
   if (!apiKey) throw httpError("Falta OPENROUTER_API_KEY. Guarda una clave en Admin o en Cloudflare.", 400);
-  const model = config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
+  const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1";
   const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
