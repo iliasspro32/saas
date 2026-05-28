@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "IvoMarket AI",
-  description: "AI content generation SaaS for creators, marketers, PLR sellers and digital product businesses."
+  title: "IvoMarket Ads",
+  description: "AI media buying SaaS for creative generation, bulk launching, smart rules and paid social optimization."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
           <Toaster />

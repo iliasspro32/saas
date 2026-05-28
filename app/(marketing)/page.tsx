@@ -52,8 +52,8 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6"><h2 className="mb-10 text-3xl font-black">Pricing that scales with creators</h2><PricingCards /></div>
       </section>
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-20 sm:px-6 lg:grid-cols-2">
-        <Card><p className="text-lg font-semibold">"IvoMarket AI replaced five messy prompt docs and gave our content team a repeatable workflow."</p><p className="mt-4 text-sm text-slate-500">Maya R., digital products founder</p></Card>
-        <Card><p className="text-lg font-semibold">"The admin controls, credits and Stripe setup make this feel like a real SaaS from day one."</p><p className="mt-4 text-sm text-slate-500">Leon T., creator agency owner</p></Card>
+        <Card><p className="text-lg font-semibold">&quot;IvoMarket AI replaced five messy prompt docs and gave our content team a repeatable workflow.&quot;</p><p className="mt-4 text-sm text-slate-500">Maya R., digital products founder</p></Card>
+        <Card><p className="text-lg font-semibold">&quot;The admin controls, credits and Stripe setup make this feel like a real SaaS from day one.&quot;</p><p className="mt-4 text-sm text-slate-500">Leon T., creator agency owner</p></Card>
       </section>
       <section className="mx-auto max-w-4xl px-4 pb-20 sm:px-6">
         <h2 className="text-3xl font-black">FAQ</h2>
