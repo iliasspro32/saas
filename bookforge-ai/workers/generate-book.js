@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = "Eres un autor y editor profesional con 20 años publicando en Amazon KDP y plataformas digitales. Generas libros completos, bien estructurados, con contenido de valor real, listos para publicar sin edición adicional. Escribe como experto humano, no como IA. SIEMPRE responde en JSON válido sin texto adicional fuera del JSON.";
+const SYSTEM_PROMPT = "Eres un autor, editor y maquetador profesional con 20 años creando ebooks para múltiples plataformas digitales. Generas libros completos, humanos, bien estructurados, útiles y exportables a PDF/EPUB/DOCX sin depender de Amazon KDP, Etsy ni ninguna tienda concreta. Escribe como experto humano, no como IA. SIEMPRE responde en JSON válido sin texto adicional fuera del JSON.";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +61,7 @@ async function generateStudioBook(input, env) {
   const chaptersCount = clean.chaptersCount;
   const targetWords = Math.max(2500, clean.targetPages * 260);
   const wordsPerChapter = Math.max(650, Math.ceil(targetWords / chaptersCount));
-  const prompt = `Crea un libro profesional completo en JSON válido.
+  const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
 Audiencia: ${clean.audience}
@@ -70,13 +70,17 @@ Capítulos: ${chaptersCount}
 Idioma: ${clean.language}
 Autor: ${clean.author}
 Páginas objetivo: ${clean.targetPages}
-Plataforma: ${clean.targetPlatform}
+Destino editorial: ebook universal multiplataforma
 Extensión objetivo: mínimo ${targetWords} palabras totales, con ${wordsPerChapter}+ palabras por capítulo.
 
 Reglas:
 - Escribe todo en el idioma solicitado.
-- Capítulos ordenados, coherentes y sin relleno.
-- Cada capítulo debe tener contenido largo, dividido en párrafos claros y humanos.
+- No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
+- Capítulos ordenados, coherentes y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
+- Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
+- Cada capítulo debe dividirse en secciones naturales. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Usa enumeraciones y viñetas cuando aporten claridad. No uses emojis ni líneas decorativas.
+- Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
 - Evita frases robóticas como "en este capítulo exploraremos" repetidas.
 - Incluye detalles prácticos, ejemplos concretos y transición natural entre ideas.
 - No incluyas texto fuera del JSON.
@@ -124,7 +128,7 @@ function validateStudioInput(input) {
     language,
     author: String(input.author || "Autor IA").slice(0, 120),
     targetPages,
-    targetPlatform: String(input.targetPlatform || "kdp").slice(0, 40)
+    targetPlatform: String(input.targetPlatform || "universal").slice(0, 40)
   };
 }
 
@@ -182,24 +186,27 @@ Devuelve SOLO JSON válido:
 }
 
 async function qualityPass(env, book, input) {
-  const prompt = `Actúa como editor humano senior, corrector ortotipográfico y editor comercial de KDP.
+  const prompt = `Actúa como editor humano senior, corrector ortotipográfico y editor comercial multiplataforma.
 Revisa este libro completo en ${input.idioma} y devuelve el MISMO JSON completo, corregido y mejorado.
 
 Objetivo editorial:
 - Que el libro parezca escrito por un humano experto, no por IA.
 - Eliminar frases robóticas, relleno, repeticiones, contradicciones y conclusiones genéricas.
 - Corregir gramática, ortografía, puntuación, concordancia, tono y fluidez.
-- Mantener contenido útil, específico y publicable.
-- Mejorar títulos de capítulos, subtítulo, descripción KDP, keywords y portada.
+- Mantener contenido útil, específico y publicable en cualquier plataforma digital.
+- Quitar sesgos hacia KDP, Etsy o tiendas concretas salvo que el usuario lo pida explícitamente.
+- Mejorar títulos de capítulos, subtítulo, descripción editorial, keywords, categoría editorial y portada.
+- Verificar que exista capítulo 0 de términos y avisos importantes cuando el nicho lo necesite.
+- Confirmar que las secciones usen tono humano, máximo aproximado de 400 palabras, viñetas/enumeraciones donde convenga y ejercicios interactivos.
 - Mantener o ampliar el valor de cada sección; no resumir el libro.
 - Respetar idioma: ${input.idioma}.
-- Respetar plataforma: ${input.plataforma}.
+- Respetar destino editorial universal multiplataforma.
 - Respetar páginas estimadas: ${input.pages}+.
 
 Reglas estrictas:
 - Devuelve SOLO JSON válido.
 - Conserva exactamente estas claves principales:
-titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_kdp, keywords, categoria_kdp, portada, indice, contenido, recursos_extra, conclusion_final, sobre_el_autor, paginas_estimadas, control_calidad
+titulo, subtitulo, autor, idioma, plataforma, tipo, descripcion_editorial, keywords, categoria_editorial, portada, indice, contenido, recursos_extra, conclusion_final, sobre_el_autor, paginas_estimadas, control_calidad
 - Añade "control_calidad" con:
 {
   "estado": "revisado",
@@ -252,14 +259,14 @@ function validateInput(input) {
 
 function buildPrompt(data) {
   const words = Math.max(12000, data.pages * 280);
-  return `Crea un libro profesional completo:
+  return `Crea un ebook profesional completo, humano y universal:
 - Título: ${data.titulo}
 - Autor: ${data.autor}
 - Tema: ${data.tema}
 - Tipo: ${data.tipo}
 - Capítulos: ${data.capitulos}
 - Idioma: ${data.idioma}
-- Plataforma: ${data.plataforma}
+- Destino editorial: ebook universal multiplataforma, exportable en PDF, EPUB y DOCX
 - Estilo interior: ${data.estilo}
 - Páginas objetivo: ${data.pages}+ páginas
 - Público objetivo: ${data.publico}
@@ -267,17 +274,28 @@ function buildPrompt(data) {
 - Dirección de portada: ${data.coverMood}
 - Portada: incluye concepto visual completo, título, subtítulo, autor, paleta, composición y prompt para generar imagen
 
+Reglas editoriales obligatorias:
+- No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o descarga PDF.
+- Escribe con voz humana: frases variadas, ejemplos realistas, criterio experto, transición natural entre ideas y cero relleno.
+- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea el capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Especifica siempre el número y texto de cada capítulo y cada sección.
+- No uses emojis. No uses líneas decorativas.
+- Usa enumeraciones y viñetas en lugar de emojis cuando ayuden a leer.
+- Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas, diarios de trabajo o acciones guiadas.
+- Mantén continuidad para que el lector sepa dónde está y pueda continuar el libro sin perder el hilo.
+
 Devuelve SOLO este JSON:
 {
   "titulo": "string",
   "subtitulo": "string",
   "autor": "string",
   "idioma": "string",
-  "plataforma": "string",
+  "plataforma": "Universal",
   "tipo": "string",
-  "descripcion_kdp": "200 palabras optimizada para Amazon",
+  "descripcion_editorial": "200 palabras válidas para cualquier plataforma",
   "keywords": ["7 keywords"],
-  "categoria_kdp": "string",
+  "categoria_editorial": "string",
   "portada": {
     "titulo_portada": "string",
     "subtitulo_portada": "string",
@@ -288,15 +306,15 @@ Devuelve SOLO este JSON:
     "prompt_imagen": "prompt detallado para generar la imagen de portada sin texto incrustado",
     "texto_contraportada": "texto comercial de contraportada"
   },
-  "indice": [{"capitulo": 1, "titulo": "string", "descripcion": "string"}],
+  "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
   "contenido": [
     {
-      "capitulo": 1,
+      "capitulo": 0,
       "titulo": "string",
       "introduccion": "string de 300+ palabras",
-      "secciones": [{"subtitulo": "string", "contenido": "string de 700+ palabras"}],
+      "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "string de hasta 400 palabras, con párrafos humanos y viñetas si corresponde"}],
       "conclusion": "string de 250+ palabras",
-      "ejercicio": "actividad, reflexión, plantilla o tarea práctica"
+      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica"
     }
   ],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],

@@ -14,18 +14,18 @@
     }).join("");
   }
 
-  async function pdfKdp(book) {
-    if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
-    const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
-    buildBookPdf(doc, book, { width: 432, height: 648, margin: 54, topMargin: 68, chapterTop: 82, fontSize: 10.7, lineHeight: 16.2, style: "kdp" });
-    doc.save(`${slug(book.titulo)}-kdp-6x9.pdf`);
-  }
-
-  async function pdfEtsy(book) {
+  async function pdfUniversal(book) {
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
-    buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 64, topMargin: 82, chapterTop: 96, fontSize: 12, lineHeight: 18, style: "etsy" });
-    doc.save(`${slug(book.titulo)}-etsy-a4.pdf`);
+    buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 64, topMargin: 82, chapterTop: 96, fontSize: 12, lineHeight: 18, style: "universal" });
+    doc.save(`${slug(book.titulo)}-ebook-universal.pdf`);
+  }
+
+  async function pdfPrint(book) {
+    if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
+    const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
+    buildBookPdf(doc, book, { width: 432, height: 648, margin: 54, topMargin: 68, chapterTop: 82, fontSize: 10.7, lineHeight: 16.2, style: "print" });
+    doc.save(`${slug(book.titulo)}-pdf-impresion-6x9.pdf`);
   }
 
   function buildBookPdf(doc, book, settings) {
@@ -78,7 +78,7 @@
     doc.setTextColor(254, 243, 199);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text(`${text(book.plataforma || "KDP").toUpperCase()} READY`, 72, 88);
+    doc.text(`${text(book.plataforma || "UNIVERSAL").toUpperCase()} READY`, 72, 88);
     doc.setTextColor(255, 255, 255);
     doc.setFont("times", "bold");
     doc.setFontSize(34);
@@ -117,12 +117,12 @@
   function drawMetadataPage(doc, book, settings, page) {
     let y = settings.topMargin;
     y = drawHeading(doc, "Información editorial", y, settings, 22, page);
-    y = drawInfo(doc, "Plataforma", book.plataforma, y, settings);
+    y = drawInfo(doc, "Destino", book.plataforma || "Universal", y, settings);
     y = drawInfo(doc, "Idioma", book.idioma, y, settings);
-    y = drawInfo(doc, "Categoría KDP", book.categoria_kdp, y, settings);
+    y = drawInfo(doc, "Categoría editorial", book.categoria_editorial || book.categoria_kdp, y, settings);
     y = drawInfo(doc, "Páginas estimadas", String(book.paginas_estimadas || ""), y, settings);
-    y = drawHeading(doc, "Descripción KDP", y + 10, settings, 16, page);
-    y = drawParagraph(doc, text(book.descripcion_kdp), y, settings, page);
+    y = drawHeading(doc, "Descripción editorial", y + 10, settings, 16, page);
+    y = drawParagraph(doc, text(book.descripcion_editorial || book.descripcion_kdp), y, settings, page);
     y = drawHeading(doc, "Keywords", y + 8, settings, 16, page);
     drawParagraph(doc, (book.keywords || []).join(", "), y, settings, page);
   }
@@ -158,7 +158,7 @@
     doc.setTextColor(138, 107, 45);
     doc.text(`CAPÍTULO ${chapter.capitulo}`, settings.margin, y);
     y += 22;
-    y = drawHeading(doc, text(chapter.titulo), y, settings, settings.style === "etsy" ? 25 : 22, page);
+    y = drawHeading(doc, text(chapter.titulo), y, settings, settings.style === "universal" ? 25 : 22, page);
     y += 10;
     y = drawParagraph(doc, text(chapter.introduccion), y, settings, page);
     (chapter.secciones || []).forEach((section) => {
@@ -174,7 +174,7 @@
   function addPage(doc, settings, page, number = true) {
     if (page.n > 0 || !number) doc.addPage();
     page.n += 1;
-    setFill(doc, settings.style === "etsy" ? "#fff7ed" : "#fffdf8");
+    setFill(doc, settings.style === "universal" ? "#ffffff" : "#fffdf8");
     doc.rect(0, 0, settings.width, settings.height, "F");
     if (number && page.n > 1) drawPageNumber(doc, settings, page.n - 1);
   }
@@ -229,7 +229,7 @@
     if (y + needed <= settings.height - settings.margin - 12) return y;
     doc.addPage();
     page.n += 1;
-    setFill(doc, settings.style === "etsy" ? "#fff7ed" : "#fffdf8");
+    setFill(doc, settings.style === "universal" ? "#ffffff" : "#fffdf8");
     doc.rect(0, 0, settings.width, settings.height, "F");
     drawPageNumber(doc, settings, page.n - 1);
     return settings.topMargin || settings.margin;
@@ -274,7 +274,7 @@
       book.titulo,
       book.subtitulo || "",
       book.autor || "",
-      `Descripción KDP: ${book.descripcion_kdp || ""}`,
+      `Descripción editorial: ${book.descripcion_editorial || book.descripcion_kdp || ""}`,
       ...(book.contenido || []).flatMap((chapter) => [
         `Capítulo ${chapter.capitulo}: ${chapter.titulo}`,
         chapter.introduccion,
@@ -303,5 +303,12 @@
     return text(value).replace(/[<>&'"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", "\"": "&quot;" })[char]);
   }
 
-  window.BookForgeExport = { pdfKdp, pdfEtsy, epub, docx };
+  window.BookForgeExport = {
+    pdfUniversal,
+    pdfPrint,
+    pdfKdp: pdfUniversal,
+    pdfEtsy: pdfPrint,
+    epub,
+    docx
+  };
 })();

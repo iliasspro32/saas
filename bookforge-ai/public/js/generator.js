@@ -247,7 +247,7 @@ function updateStatsFromForm() {
   const data = Object.fromEntries(new FormData(form).entries());
   setText("statPages", data.pages || "100");
   setText("statLang", shortLang(data.idioma || "Español"));
-  setText("statFormat", data.plataforma || "KDP");
+  setText("statFormat", data.plataforma || "Universal");
 }
 
 async function generateWithConfiguredApi(payload) {
@@ -338,19 +338,29 @@ async function callAnthropic(config, prompt) {
 function buildApiPrompt(payload) {
   const pages = Number(payload.pages || 100);
   const words = Math.max(9000, pages * 220);
-  return `Crea un libro profesional completo y humano, revisado como editor, listo para publicar.
+  return `Crea un ebook profesional completo, humano y universal, revisado como editor, listo para publicar y exportar en PDF.
 Título: ${payload.titulo}
 Autor: ${payload.autor || "BookForge AI Studio"}
 Tema: ${payload.tema}
 Tipo: ${payload.tipo}
 Capítulos: ${payload.capitulos}
 Idioma: ${payload.idioma}
-Plataforma: ${payload.plataforma}
+Destino editorial: ebook universal multiplataforma
 Estilo: ${payload.estilo}
 Páginas objetivo: ${pages}
 Extensión objetivo: ${words}+ palabras
 Público objetivo: ${payload.publico || "lectores interesados en el tema"}
 Portada: ${payload.coverMood || "portada comercial premium"}
+
+Reglas obligatorias:
+- No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o PDF descargable.
+- Escribe como humano experto: frases variadas, ejemplos concretos, criterio editorial, transiciones naturales y cero relleno.
+- Si el nicho es desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, incluye Capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
+- Especifica número y texto de cada capítulo, y número/título de cada sección.
+- No uses emojis ni líneas decorativas.
+- Usa enumeraciones y viñetas cuando aporten claridad.
+- Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
 
 Devuelve SOLO JSON válido con estas claves:
 {
@@ -358,11 +368,11 @@ Devuelve SOLO JSON válido con estas claves:
   "subtitulo": "string",
   "autor": "string",
   "idioma": "string",
-  "plataforma": "string",
+  "plataforma": "Universal",
   "tipo": "string",
-  "descripcion_kdp": "200 palabras",
+  "descripcion_editorial": "200 palabras válidas para cualquier plataforma",
   "keywords": ["7 keywords"],
-  "categoria_kdp": "string",
+  "categoria_editorial": "string",
   "portada": {
     "titulo_portada": "string",
     "subtitulo_portada": "string",
@@ -373,8 +383,8 @@ Devuelve SOLO JSON válido con estas claves:
     "prompt_imagen": "string",
     "texto_contraportada": "string"
   },
-  "indice": [{"capitulo": 1, "titulo": "string", "descripcion": "string"}],
-  "contenido": [{"capitulo": 1, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "string", "contenido": "700+ palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
+  "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
+  "contenido": [{"capitulo": 0, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "hasta 400 palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
   "conclusion_final": "600+ palabras",
   "sobre_el_autor": "string",
@@ -437,7 +447,7 @@ function renderCover(book) {
   element.style.setProperty("--cover-b", colors[1] || "#6366f1");
   element.style.setProperty("--cover-c", colors[2] || "#f59e0b");
   element.innerHTML = `
-    <div class="cover-band">${escapeHtml(book.plataforma || "KDP")} READY</div>
+    <div class="cover-band">${escapeHtml(book.plataforma || "Universal")} READY</div>
     <div class="cover-title-block">
       <h2>${escapeHtml(cover.titulo_portada || book.titulo)}</h2>
       <p>${escapeHtml(cover.subtitulo_portada || book.subtitulo || "")}</p>
@@ -474,13 +484,13 @@ function renderManuscript(book) {
       <section class="book-page copyright-page">
         <h2>Información editorial</h2>
         <div class="metadata-grid">
-          <div><strong>Plataforma</strong><span>${escapeHtml(book.plataforma || "")}</span></div>
+          <div><strong>Destino</strong><span>${escapeHtml(book.plataforma || "Universal")}</span></div>
           <div><strong>Idioma</strong><span>${escapeHtml(book.idioma || "")}</span></div>
-          <div><strong>Categoría KDP</strong><span>${escapeHtml(book.categoria_kdp || "")}</span></div>
+          <div><strong>Categoría editorial</strong><span>${escapeHtml(book.categoria_editorial || book.categoria_kdp || "")}</span></div>
           <div><strong>Páginas estimadas</strong><span>${escapeHtml(String(book.paginas_estimadas || ""))}</span></div>
         </div>
-        <h3>Descripción KDP</h3>
-        <p>${formatText(book.descripcion_kdp)}</p>
+        <h3>Descripción editorial</h3>
+        <p>${formatText(book.descripcion_editorial || book.descripcion_kdp)}</p>
         <h3>Keywords</h3>
         <p>${(book.keywords || []).map(escapeHtml).join(", ")}</p>
       </section>
@@ -514,7 +524,7 @@ function normalizeBook(book, payload, owner) {
     titulo: book.titulo || payload.titulo,
     autor: book.autor || payload.autor || "BookForge AI Studio",
     idioma: book.idioma || payload.idioma,
-    plataforma: book.plataforma || payload.plataforma,
+    plataforma: book.plataforma || payload.plataforma || "Universal",
     tipo: book.tipo || payload.tipo,
     paginas_estimadas: Number(book.paginas_estimadas || payload.pages || 100),
     owner,
@@ -561,11 +571,11 @@ function buildDemoBook(payload) {
     subtitulo: "Una guía profesional creada con BookForge AI",
     autor: payload.autor || "BookForge AI Studio",
     idioma: payload.idioma || "Español",
-    plataforma: payload.plataforma || "KDP",
+    plataforma: payload.plataforma || "Universal",
     tipo: payload.tipo || "Non-fiction",
-    descripcion_kdp: `Descubre una guía práctica sobre ${payload.tema || "tu tema"} diseñada para lectores que buscan claridad, estructura y resultados aplicables. Esta versión demo permite validar el flujo de creación antes de conectar una API real.`,
-    keywords: ["ebook", "KDP", "guía práctica", "libro digital", "workbook", "publicación", "BookForge"],
-    categoria_kdp: "Business & Money / Personal Success",
+    descripcion_editorial: `Descubre una guía práctica sobre ${payload.tema || "tu tema"} diseñada para lectores que buscan claridad, estructura y resultados aplicables. Esta versión demo permite validar el flujo de creación, el PDF y los formatos universales antes de conectar una API real.`,
+    keywords: ["ebook", "guía práctica", "libro digital", "workbook", "publicación", "PDF", "BookForge"],
+    categoria_editorial: "No ficción / Desarrollo práctico",
     portada: {
       titulo_portada: title,
       subtitulo_portada: "Guía completa para transformar ideas en un libro publicable",
@@ -578,7 +588,7 @@ function buildDemoBook(payload) {
     },
     indice: chapterItems.map((chapter) => ({ capitulo: chapter.capitulo, titulo: chapter.titulo, descripcion: "Capítulo estructurado con introducción, desarrollo, conclusión y ejercicio." })),
     contenido: chapterItems,
-    recursos_extra: [{ titulo: "Checklist de publicación", contenido: "Revisa título, portada, descripción, keywords, categoría, formato PDF, enlaces y precio antes de publicar." }],
+    recursos_extra: [{ titulo: "Checklist de publicación universal", contenido: "Revisa título, portada, descripción, keywords, categoría, formato PDF, EPUB, DOCX, enlaces y precio antes de publicar o entregar el ebook." }],
     conclusion_final: "Esta conclusión demo valida el cierre editorial del libro. Con una API configurada, BookForge genera una conclusión más extensa, humana y adaptada al idioma, plataforma y lector objetivo.",
     sobre_el_autor: "BookForge AI Studio ayuda a convertir ideas en libros digitales listos para publicar.",
     paginas_estimadas: Number(payload.pages || 100),
@@ -627,10 +637,10 @@ function startLoading(button) {
   clearInterval(state.progressTimer);
   state.progressTimer = setInterval(() => {
     progress = Math.min(92, progress + Math.ceil(Math.random() * 7));
-    const titles = progress > 78 ? "Revisión humana final" : progress > 55 ? "Corrigiendo estilo y errores" : progress > 30 ? "Redactando contenido largo" : "Preparando portada y KDP";
+    const titles = progress > 78 ? "Revisión humana final" : progress > 55 ? "Corrigiendo estilo y errores" : progress > 30 ? "Redactando contenido largo" : "Preparando portada y edición universal";
     const text = progress > 55
       ? "El editor IA está eliminando repeticiones, tono robótico, incoherencias y errores antes de guardar."
-      : "Claude está generando el manuscrito, portada y assets de publicación.";
+      : "La IA está generando el manuscrito, portada y materiales de publicación.";
     setStatus(progress, titles, text);
   }, 1400);
 }
@@ -640,7 +650,7 @@ function stopLoading(button) {
   setStatus(100, "Libro revisado y generado", "El libro pasó por una revisión editorial antes de guardarse. Revisa el preview y exporta.");
   button.disabled = false;
   button.classList.remove("loading");
-  button.textContent = "⚡ Generar Libro Ahora";
+  button.textContent = "Generar Libro Ahora";
 }
 
 function setStatus(progress, title, text) {
@@ -658,9 +668,8 @@ function bindExports() {
     button.addEventListener("click", () => {
       if (!state.book) return toast("Genera un libro primero.");
       const type = button.dataset.export;
-      if (type === "pdf") return window.BookForgeExport.pdfKdp(state.book);
-      if (type === "kdp") return window.BookForgeExport.pdfKdp(state.book);
-      if (type === "etsy") return window.BookForgeExport.pdfEtsy(state.book);
+      if (type === "pdf") return window.BookForgeExport.pdfUniversal(state.book);
+      if (type === "print") return window.BookForgeExport.pdfPrint(state.book);
       if (type === "epub") return window.BookForgeExport.epub(state.book);
       if (type === "docx") return window.BookForgeExport.docx(state.book);
     });

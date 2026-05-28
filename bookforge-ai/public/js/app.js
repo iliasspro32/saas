@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("bookforge_draft", JSON.stringify({
       ...draft,
       capitulos: Number(draft.pages) >= 150 ? "20" : "10",
-      plataforma: "KDP",
+      plataforma: "Universal",
       estilo: "Editorial premium",
       coverMood: "portada premium para ebook comercial"
     }));
