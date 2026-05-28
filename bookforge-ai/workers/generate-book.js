@@ -59,9 +59,10 @@ async function generateStudioBook(input, env) {
   await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
-  const targetWords = Math.max(8000, clean.targetPages * 450);
-  const wordsPerChapter = Math.max(1200, Math.ceil(targetWords / chaptersCount));
+  const targetWords = Math.max(9000, clean.targetPages * 420);
+  const wordsPerChapter = Math.max(1000, Math.ceil(targetWords / chaptersCount));
   const sectionsPerChapter = Math.max(3, Math.min(5, Math.ceil(wordsPerChapter / 900)));
+  const languageRule = languageInstruction(clean.language);
   const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
@@ -77,7 +78,7 @@ Cada capítulo debe tener como mínimo ${wordsPerChapter} palabras.
 Cada capítulo debe incluir ${sectionsPerChapter} a 5 secciones internas desarrolladas dentro del campo "content".
 
 Reglas:
-- Escribe todo en el idioma solicitado.
+- ${languageRule}
 - No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
 - Capítulos ordenados, coherentes, largos y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
 - Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
@@ -107,13 +108,85 @@ Devuelve exactamente:
   const aiText = await callBookAi(env, prompt);
   const parsed = parseJson(aiText.text, aiText.provider);
   const id = "bf-" + crypto.randomUUID().slice(0, 9);
-  const book = normalizeStudioBook(parsed, clean, id);
+  let book = normalizeStudioBook(parsed, clean, id);
+  book = await expandShortStudioBook(env, book, clean);
 
   if (env.BOOKFORGE_KV) {
     await env.BOOKFORGE_KV.put(`studio:${id}`, JSON.stringify(book));
   }
 
   return json({ success: true, book });
+}
+
+async function expandShortStudioBook(env, book, input) {
+  const targetPerChapter = Math.min(1800, Math.max(850, Math.ceil(input.targetPages * 320 / Math.max(1, input.chaptersCount))));
+  const languageRule = languageInstruction(input.language);
+  const chapters = await Promise.all(book.chapters.map(async (chapter) => {
+    if (wordCount(chapter.content) >= targetPerChapter) return chapter;
+    const prompt = `Reescribe y amplía este capítulo para un ebook profesional.
+
+Libro: ${book.title}
+Tema: ${input.topic}
+Audiencia: ${input.audience}
+Tono: ${input.tone}
+Capítulo ${chapter.number}: ${chapter.title}
+
+Contenido actual:
+${chapter.content}
+
+Reglas obligatorias:
+- ${languageRule}
+- Escribe mínimo ${targetPerChapter} palabras.
+- Divide el capítulo con subtítulos claros.
+- Incluye explicación, ejemplos concretos, errores a evitar, pasos prácticos y un ejercicio final.
+- No mezcles idiomas.
+- No menciones que estás reescribiendo.
+- Devuelve SOLO JSON válido: { "content": "texto completo del capítulo" }`;
+
+    try {
+      const aiText = await callBookAi(env, prompt);
+      const expanded = parseJson(aiText.text, aiText.provider);
+      const content = String(expanded.content || "").trim();
+      return content ? { ...chapter, content } : chapter;
+    } catch {
+      return chapter;
+    }
+  }));
+
+  return {
+    ...book,
+    introduction: ensureMinimumText(book.introduction, input, "introducción"),
+    conclusion: ensureMinimumText(book.conclusion, input, "conclusión"),
+    chapters
+  };
+}
+
+function ensureMinimumText(value, input, label) {
+  const text = String(value || "").trim();
+  if (wordCount(text) >= 120) return text;
+  if (isArabicLanguage(input.language)) {
+    return label === "introducción"
+      ? `هذا الكتاب صُمم ليمنح القارئ مسارا واضحا وعمليا حول ${input.topic}. ستجد داخله أفكارا مرتبة، أمثلة قابلة للتطبيق، وخطوات تساعدك على تحويل المعرفة إلى ممارسة يومية. الهدف ليس تقديم كلام عام، بل بناء دليل مفيد يمكن الرجوع إليه عند الحاجة.`
+      : `في النهاية، قيمة هذا الكتاب لا تقاس بعدد الصفحات فقط، بل بقدرة القارئ على تطبيق ما تعلمه خطوة بعد خطوة. ارجع إلى الفصول، نفذ التمارين، وعدل الخطة بما يناسب واقعك حتى تحصل على نتيجة عملية ومستدامة.`;
+  }
+  return label === "introducción"
+    ? `Este libro está diseñado para ofrecer una guía clara, práctica y bien organizada sobre ${input.topic}. A lo largo de sus capítulos encontrarás explicaciones, ejemplos y acciones concretas para convertir la información en aplicación real.`
+    : `La mejor forma de aprovechar este libro es volver a sus capítulos, aplicar los ejercicios y convertir cada idea útil en una acción concreta. El progreso aparece cuando el lector deja de consumir información y empieza a practicarla con criterio.`;
+}
+
+function wordCount(value) {
+  return String(value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function isArabicLanguage(language) {
+  return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
+}
+
+function languageInstruction(language) {
+  if (isArabicLanguage(language)) {
+    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+  }
+  return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
 }
 
 function validateStudioInput(input) {
@@ -360,7 +433,7 @@ async function callClaude(env, prompt, pages, temperature = 0.7) {
 async function callGemini(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
-  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro";
   const maxTokens = Math.max(24000, Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "32000"));
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
@@ -392,8 +465,8 @@ async function callGemini(env, prompt) {
 async function callOpenRouter(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.OPENROUTER_API_KEY || config.openRouterApiKey;
-  const model = config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
-  const maxTokens = Math.max(16000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "24000"));
+  const model = config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4";
+  const maxTokens = Math.max(24000, Number(config.openRouterMaxTokens || env.OPENROUTER_MAX_TOKENS || "32000"));
   const appUrl = config.appUrl || env.APP_URL || "https://saas-7ro.pages.dev";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -518,9 +591,9 @@ async function health(env) {
   return json({
     ok: true,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
-    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.0-flash",
+    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro",
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
-    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+    openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4",
     aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
     kvConfigured: Boolean(env.BOOKFORGE_KV)
   });

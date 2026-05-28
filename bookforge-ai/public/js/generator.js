@@ -91,7 +91,7 @@ function bindApiConfig() {
     const config = Object.fromEntries(new FormData(form).entries());
     state.apiConfig = {
       provider: config.provider || "gemini",
-      model: config.model || "gemini-2.0-flash",
+      model: config.model || "gemini-2.5-pro",
       apiKey: config.apiKey || "",
       maxTokens: Number(config.maxTokens || 32000)
     };
@@ -115,7 +115,7 @@ function bindApiConfig() {
 function hydrateApiConfigForm() {
   const form = document.getElementById("apiConfigForm");
   if (!form) return;
-  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.0-flash", apiKey: "", maxTokens: 32000 };
+  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.5-pro", apiKey: "", maxTokens: 32000 };
   form.elements.provider.value = config.provider;
   form.elements.model.value = config.model;
   form.elements.apiKey.value = config.apiKey || "";
@@ -338,8 +338,9 @@ async function callAnthropic(config, prompt) {
 function buildApiPrompt(payload) {
   const pages = Number(payload.pages || 100);
   const chapters = Math.max(1, Number(payload.capitulos || 10));
-  const words = Math.max(12000, pages * 450);
-  const wordsPerChapter = Math.max(1200, Math.ceil(words / chapters));
+  const words = Math.max(9000, pages * 420);
+  const wordsPerChapter = Math.max(1000, Math.ceil(words / chapters));
+  const languageRule = languageInstruction(payload.idioma);
   return `Crea un ebook profesional completo, humano y universal, revisado como editor, listo para publicar y exportar en PDF.
 Título: ${payload.titulo}
 Autor: ${payload.autor || "BookForge AI Studio"}
@@ -356,6 +357,7 @@ Público objetivo: ${payload.publico || "lectores interesados en el tema"}
 Portada: ${payload.coverMood || "portada comercial premium"}
 
 Reglas obligatorias:
+- ${languageRule}
 - No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o PDF descargable.
 - Escribe como humano experto: frases variadas, ejemplos concretos, criterio editorial, transiciones naturales y cero relleno.
 - Si el nicho es desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, incluye Capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
@@ -711,6 +713,17 @@ function setText(id, value) {
 
 function shortLang(value) {
   return { Español: "ES", Inglés: "EN", Portugués: "PT", Francés: "FR", Alemán: "DE", Italiano: "IT", Árabe: "AR", Holandés: "NL" }[value] || value.slice(0, 2).toUpperCase();
+}
+
+function isArabicLanguage(language) {
+  return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
+}
+
+function languageInstruction(language) {
+  if (isArabicLanguage(language)) {
+    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+  }
+  return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
 }
 
 function escapeHtml(value = "") {
