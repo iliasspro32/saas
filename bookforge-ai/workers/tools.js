@@ -78,7 +78,7 @@ async function convertVoice(request, env) {
   const language = clean(body.language || "same", 60);
   const guide = mergeGuides(voice.guide, body.speechGuide);
   if (!mediaData) throw httpError("Sube un archivo de audio o vídeo con tu voz.", 400);
-  if (mediaData.length > 13_500_000) throw httpError("El archivo es demasiado grande. Usa un audio o vídeo corto de menos de 10 MB.", 413);
+  if (mediaData.length > 34_000_000) throw httpError("El archivo sigue siendo demasiado grande después de la compresión. Usa un clip más corto.", 413);
   const apiKey = requireGemini(env);
   const base64 = mediaData.includes(";base64,") ? mediaData.split(";base64,")[1] : mediaData;
   const languageRule = language === "same"
@@ -140,7 +140,7 @@ async function analyzeVoice(request, env) {
   const voiceName = clean(body.voiceName || "Mi voz", 80);
   const mimeType = clean(body.mimeType || "audio/wav", 80);
   if (!audioData) throw httpError("Sube una muestra de audio.", 400);
-  if (audioData.length > 7_000_000) throw httpError("La muestra es demasiado grande. Usa un audio corto de menos de 5 MB.", 413);
+  if (audioData.length > 13_500_000) throw httpError("La muestra sigue siendo demasiado grande después de la compresión. Usa un audio más corto.", 413);
   const apiKey = requireGemini(env);
   const base64 = audioData.includes(";base64,") ? audioData.split(";base64,")[1] : audioData;
 

@@ -42,7 +42,7 @@
         <h2>Sube tu audio o vídeo y cámbialo a otra voz</h2>
         <p>Usa un archivo propio o con permiso. Puedes conservar el idioma original o convertir el mensaje a árabe, inglés, francés, español o darija marroquí.</p>
         <form id="convertForm" class="convert-form">
-          <label>Audio o vídeo<input name="media" type="file" accept="audio/*,video/*" required></label>
+          <label>Audio o vídeo<input name="media" type="file" accept="audio/*,video/*" required><small>Audio: compresión automática hasta 60 MB. Vídeo: máximo 24 MB.</small></label>
           <label>Nueva voz<select name="voiceName" id="convertVoiceSelect"></select></label>
           <label>Idioma final<select name="language">
             <option value="same">Mismo idioma del audio</option>
@@ -86,7 +86,7 @@
         <p>Sube una grabación breve propia o con permiso. Se analizarán ritmo, tono y estilo para aplicarlos a nuevas voces sintetizadas.</p>
         <form id="cloneForm" class="clone-form">
           <label>Nombre de la voz<input name="voiceName" required placeholder="Ej: Narrador cálido"></label>
-          <label>Muestra de audio<input name="audio" type="file" accept="audio/*" required></label>
+          <label>Muestra de audio<input name="audio" type="file" accept="audio/*" required><small>La muestra se comprime automáticamente. Puedes subir audio de hasta 30 MB.</small></label>
           <button class="tool-primary" type="submit">Crear firma vocal</button>
         </form>
         <div class="profile-list" id="profileList"></div>

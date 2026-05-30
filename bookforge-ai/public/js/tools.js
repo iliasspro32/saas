@@ -1,4 +1,10 @@
 const toolsApi = "/api/tools";
+const MB = 1024 * 1024;
+const MAX_CONVERT_PAYLOAD_BYTES = 24 * MB;
+const MAX_CONVERT_AUDIO_SOURCE_BYTES = 60 * MB;
+const MAX_CONVERT_VIDEO_SOURCE_BYTES = 24 * MB;
+const MAX_CLONE_PAYLOAD_BYTES = 9 * MB;
+const MAX_CLONE_AUDIO_SOURCE_BYTES = 30 * MB;
 const baseVoices = [
   { id: "Kore", name: "Kore", description: "Narración firme y profesional" },
   { id: "Puck", name: "Puck", description: "Tono dinámico y cercano" },
@@ -39,11 +45,12 @@ function bindConvert() {
     const form = new FormData(event.currentTarget);
     const file = form.get("media");
     try {
+      setLoading(button, true, "Preparando archivo...");
+      const prepared = await prepareMediaFile(file);
       setLoading(button, true, "Procesando...");
-      const mediaData = await readFile(file);
       const data = await post(`${toolsApi}/voice-convert`, {
-        mediaData,
-        mimeType: file.type,
+        mediaData: prepared.dataUrl,
+        mimeType: prepared.mimeType,
         voiceName: form.get("voiceName"),
         language: form.get("language"),
         speechGuide: form.get("speechGuide")
@@ -90,9 +97,14 @@ function bindClone() {
     const form = new FormData(event.currentTarget);
     const file = form.get("audio");
     try {
+      setLoading(button, true, "Preparando audio...");
+      const prepared = await prepareAudioFile(file, {
+        maxPayloadBytes: MAX_CLONE_PAYLOAD_BYTES,
+        maxSourceBytes: MAX_CLONE_AUDIO_SOURCE_BYTES,
+        tooLargeMessage: "La muestra sigue siendo demasiado grande después de comprimirla. Usa una grabación más corta."
+      });
       setLoading(button, true, "Analizando...");
-      const audioData = await readFile(file);
-      const data = await post(`${toolsApi}/voice-clone`, { voiceName: form.get("voiceName"), mimeType: file.type, audioData });
+      const data = await post(`${toolsApi}/voice-clone`, { voiceName: form.get("voiceName"), mimeType: prepared.mimeType, audioData: prepared.dataUrl });
       customVoices.unshift(data.profile);
       customVoices = customVoices.slice(0, 12);
       localStorage.setItem("bookforge_custom_voices", JSON.stringify(customVoices));
@@ -207,6 +219,82 @@ function readFile(file) {
     reader.onerror = () => reject(new Error("No se pudo leer el audio."));
     reader.readAsDataURL(file);
   });
+}
+
+async function prepareMediaFile(file) {
+  if (!file) throw new Error("Selecciona un archivo de audio o vídeo.");
+  if (!String(file.type || "").startsWith("audio/")) {
+    if (file.size > MAX_CONVERT_VIDEO_SOURCE_BYTES) {
+      throw new Error("El vídeo es demasiado grande. Usa un clip de hasta 24 MB o conviértelo a MP3.");
+    }
+    return { dataUrl: await readFile(file), mimeType: file.type || "video/mp4" };
+  }
+  return prepareAudioFile(file, {
+    maxPayloadBytes: MAX_CONVERT_PAYLOAD_BYTES,
+    maxSourceBytes: MAX_CONVERT_AUDIO_SOURCE_BYTES,
+    tooLargeMessage: "El audio sigue siendo demasiado grande después de comprimirlo. Usa una grabación más corta."
+  });
+}
+
+async function prepareAudioFile(file, options) {
+  if (!file) throw new Error("Selecciona un archivo de audio.");
+  if (!String(file.type || "").startsWith("audio/")) throw new Error("Selecciona un archivo de audio válido.");
+  if (file.size > options.maxSourceBytes) {
+    throw new Error(`El audio supera ${Math.round(options.maxSourceBytes / MB)} MB. Usa una grabación más corta.`);
+  }
+  if (file.size <= options.maxPayloadBytes) return { dataUrl: await readFile(file), mimeType: file.type || "audio/wav" };
+
+  const compressed = await compressAudioFile(file);
+  if (compressed.size > options.maxPayloadBytes) throw new Error(options.tooLargeMessage);
+  return { dataUrl: await readFile(compressed), mimeType: "audio/wav" };
+}
+
+async function compressAudioFile(file) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error("Tu navegador no puede comprimir este audio. Conviértelo a MP3 e inténtalo de nuevo.");
+
+  const context = new AudioContextClass();
+  try {
+    const audio = await context.decodeAudioData(await file.arrayBuffer());
+    const sampleRate = 16000;
+    const samples = new Float32Array(Math.ceil(audio.duration * sampleRate));
+    const channels = Array.from({ length: audio.numberOfChannels }, (_, index) => audio.getChannelData(index));
+    for (let index = 0; index < samples.length; index += 1) {
+      const sourceIndex = Math.min(audio.length - 1, Math.floor(index * audio.sampleRate / sampleRate));
+      samples[index] = channels.reduce((sum, channel) => sum + channel[sourceIndex], 0) / channels.length;
+    }
+    return new Blob([encodeWav(samples, sampleRate)], { type: "audio/wav" });
+  } catch {
+    throw new Error("No se pudo comprimir el audio. Usa un archivo MP3, WAV o M4A más corto.");
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
+function encodeWav(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeText = (offset, value) => {
+    for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
+  };
+  writeText(0, "RIFF");
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeText(8, "WAVE");
+  writeText(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeText(36, "data");
+  view.setUint32(40, samples.length * 2, true);
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]));
+    view.setInt16(44 + index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return buffer;
 }
 
 function setLoading(button, loading, text) {

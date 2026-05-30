@@ -11,6 +11,7 @@
 .tool-card h2 { margin-bottom: 4px; }
 .tool-primary { min-height: 52px; border: 0; border-radius: var(--radius); padding: 0 16px; background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff; font-weight: 900; }
 .tool-primary[disabled] { cursor: wait; opacity: .7; }
+.tool-card small { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .empty-result { display: grid; min-height: 180px; place-items: center; border: 1px dashed var(--line); border-radius: var(--radius); padding: 18px; color: var(--muted); text-align: center; }
 #voiceResult { display: grid; gap: 16px; }
 #voiceAudio { width: 100%; }
