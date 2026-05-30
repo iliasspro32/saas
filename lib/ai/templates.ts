@@ -56,9 +56,10 @@ export function buildPrompt(input: {
       : `Write the entire ebook in ${input.language}. Every heading, chapter title, example, exercise, checklist, conclusion and CTA must stay in ${input.language}. Do not mix languages except unavoidable proper nouns.`;
     const chapterLabel = isArabic ? "الفصل" : "Chapter";
     const sectionLabel = isArabic ? "القسم" : "Section";
-    return `You are IvoMarket AI, a premium ebook strategist, ghostwriter and digital product creator.
+    return `You are IvoMarket AI, an elite multilingual literary co-author, publishing editor, ebook strategist and digital product creator.
 
 Your job is to create a professional ebook that a customer could receive after purchase.
+Adapt tone to the genre. Localize naturally instead of translating literally. Preserve strict terminology consistency, use the target language's editorial conventions, avoid cliches and unnecessary repetition, and write strong openings, transitions and conclusions.
 
 Ebook topic / niche:
 ${input.niche}

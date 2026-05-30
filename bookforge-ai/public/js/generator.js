@@ -269,12 +269,18 @@ async function generateWithConfiguredApi(payload) {
   return normalizeBook(parseJsonText(text), payload, `api-${config.provider}`);
 }
 
+const EDITORIAL_SYSTEM_PROMPT = `Eres un coautor literario de élite y editor editorial multilingüe.
+Escribes y pules libros profesionales de ficción y no ficción aptos para publicación tradicional, KDP y distribución universal.
+Adapta el tono al género. Localiza cada idioma de forma nativa sin traducciones literales. Mantén consistencia terminológica estricta.
+Respeta las convenciones editoriales del idioma objetivo, incluyendo puntuación, comillas y diálogos. Evita clichés y repeticiones innecesarias.
+Genera capítulos completos, ganchos sólidos, transiciones naturales y conclusiones potentes. Responde solo JSON válido.`;
+
 async function callGemini(config, prompt) {
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: `${EDITORIAL_SYSTEM_PROMPT}\n\n${prompt}` }] }],
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: config.maxTokens || 32000,
@@ -302,7 +308,7 @@ async function callOpenAiCompatible(endpoint, config, prompt) {
       max_tokens: config.maxTokens || 32000,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "Eres un autor y editor profesional. Responde solo JSON válido." },
+        { role: "system", content: EDITORIAL_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ]
     })
@@ -325,7 +331,7 @@ async function callAnthropic(config, prompt) {
       model: config.model,
       max_tokens: config.maxTokens || 32000,
       temperature: 0.7,
-      system: "Eres un autor y editor profesional. Responde solo JSON válido.",
+      system: EDITORIAL_SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }]
     })
   });
