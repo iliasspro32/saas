@@ -290,7 +290,7 @@ function normalizeStudioBook(book, input, id) {
     subtitle: String(book.subtitle || `Una guía profesional sobre ${input.topic}`).trim(),
     genre: String(book.genre || input.genre).trim(),
     author: String(book.author || input.author).trim(),
-    language: String(book.language || input.language).trim(),
+    language: String(input.language).trim(),
     introduction: String(book.introduction || "").trim(),
     tableOfContents: Array.isArray(book.tableOfContents) && book.tableOfContents.length
       ? book.tableOfContents.map((item) => String(item))
@@ -617,7 +617,7 @@ function normalizeBook(book, input, email) {
     ...book,
     titulo: book.titulo || input.titulo,
     autor: book.autor || input.autor,
-    idioma: book.idioma || input.idioma,
+    idioma: input.idioma,
     plataforma: book.plataforma || input.plataforma,
     tipo: book.tipo || input.tipo,
     paginas_estimadas: Number(book.paginas_estimadas || input.pages),

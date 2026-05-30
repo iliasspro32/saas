@@ -541,7 +541,7 @@ function normalizeBook(book, payload, owner) {
     ...book,
     titulo: book.titulo || payload.titulo,
     autor: book.autor || payload.autor || "BookForge AI Studio",
-    idioma: book.idioma || payload.idioma,
+    idioma: payload.idioma || book.idioma,
     plataforma: book.plataforma || payload.plataforma || "Universal",
     tipo: book.tipo || payload.tipo,
     paginas_estimadas: Number(book.paginas_estimadas || payload.pages || 100),
