@@ -15,6 +15,13 @@
 #voiceResult { display: grid; gap: 16px; }
 #voiceAudio { width: 100%; }
 .clone-card { margin-top: 18px; }
+.convert-card { margin-bottom: 18px; }
+.convert-card p { max-width: 900px; color: var(--muted); line-height: 1.7; }
+.convert-form { display: grid; gap: 12px; }
+.convert-result { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+.convert-result audio { width: 100%; }
+.transcription { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: rgba(255,255,255,.04); }
+.transcription p { margin-bottom: 0; color: #e4e4e7; }
 .clone-form { display: grid; gap: 12px; }
 .profile-list { display: grid; gap: 10px; }
 .voice-profile { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: rgba(255,255,255,.04); }
@@ -28,4 +35,5 @@
   .tool-grid { grid-template-columns: minmax(320px, 420px) 1fr; }
   .landing-grid { grid-template-columns: minmax(340px, 420px) 1fr; }
   .clone-form { grid-template-columns: 1fr 1fr auto; align-items: end; }
+  .convert-form { grid-template-columns: 1.15fr .9fr .9fr 1fr auto; align-items: end; }
 }

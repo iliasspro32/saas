@@ -12,6 +12,7 @@ let customVoices = JSON.parse(localStorage.getItem("bookforge_custom_voices") ||
 document.addEventListener("DOMContentLoaded", () => {
   bindTabs();
   bindVoice();
+  bindConvert();
   bindClone();
   bindLanding();
   renderVoices();
@@ -23,6 +24,36 @@ function bindTabs() {
     document.getElementById("voiceView").classList.toggle("hidden", button.dataset.tab !== "voice");
     document.getElementById("landingView").classList.toggle("hidden", button.dataset.tab !== "landing");
   }));
+}
+
+function bindConvert() {
+  document.getElementById("convertVoiceSelect").addEventListener("change", applySelectedConvertGuide);
+  document.getElementById("convertForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button");
+    const form = new FormData(event.currentTarget);
+    const file = form.get("media");
+    try {
+      setLoading(button, true, "Procesando...");
+      const mediaData = await readFile(file);
+      const data = await post(`${toolsApi}/voice-convert`, {
+        mediaData,
+        mimeType: file.type,
+        voiceName: form.get("voiceName"),
+        language: form.get("language"),
+        speechGuide: form.get("speechGuide")
+      });
+      document.getElementById("convertAudio").src = data.audioData;
+      document.getElementById("convertDownload").href = data.audioData;
+      document.getElementById("convertTranscription").textContent = data.transcription;
+      document.getElementById("convertResult").classList.remove("hidden");
+      toast("Voz cambiada correctamente.");
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      setLoading(button, false, "Cambiar voz");
+    }
+  });
 }
 
 function bindVoice() {
@@ -127,10 +158,12 @@ function toggleLandingView() {
 
 function renderVoices() {
   const select = document.getElementById("voiceSelect");
-  select.innerHTML = [
+  const voiceOptions = [
     ...baseVoices.map((voice) => `<option value="${voice.id}">${voice.name} · ${voice.description}</option>`),
     ...customVoices.map((voice) => `<option value="${voice.baseVoice}" data-guide="${escapeHtml(voice.speechGuide)}">${escapeHtml(voice.name)} · firma personalizada</option>`)
   ].join("");
+  select.innerHTML = voiceOptions;
+  document.getElementById("convertVoiceSelect").innerHTML = voiceOptions;
   document.getElementById("profileList").innerHTML = customVoices.length
     ? customVoices.map((voice, index) => `<div class="voice-profile"><strong>${escapeHtml(voice.name)}</strong><span>${escapeHtml(voice.descriptor)}</span><button type="button" data-profile="${index}">Usar esta firma</button></div>`).join("")
     : `<div class="empty-result">Todavía no has guardado firmas vocales.</div>`;
@@ -138,8 +171,15 @@ function renderVoices() {
     const voice = customVoices[Number(button.dataset.profile)];
     select.value = voice.baseVoice;
     document.getElementById("speechGuide").value = voice.speechGuide;
+    document.getElementById("convertVoiceSelect").value = voice.baseVoice;
+    document.getElementById("convertSpeechGuide").value = voice.speechGuide;
     toast(`Firma "${voice.name}" seleccionada.`);
   }));
+}
+
+function applySelectedConvertGuide() {
+  const option = document.getElementById("convertVoiceSelect").selectedOptions[0];
+  document.getElementById("convertSpeechGuide").value = option?.dataset.guide || "";
 }
 
 function applySelectedVoiceGuide() {

@@ -37,6 +37,30 @@
     </div>
 
     <section class="tool-view" id="voiceView">
+      <div class="tool-card convert-card">
+        <p class="eyebrow">Cambiador de voz multilingüe</p>
+        <h2>Sube tu audio o vídeo y cámbialo a otra voz</h2>
+        <p>Usa un archivo propio o con permiso. Puedes conservar el idioma original o convertir el mensaje a árabe, inglés, francés, español o darija marroquí.</p>
+        <form id="convertForm" class="convert-form">
+          <label>Audio o vídeo<input name="media" type="file" accept="audio/*,video/*" required></label>
+          <label>Nueva voz<select name="voiceName" id="convertVoiceSelect"></select></label>
+          <label>Idioma final<select name="language">
+            <option value="same">Mismo idioma del audio</option>
+            <option>Árabe</option>
+            <option>Inglés</option>
+            <option>Francés</option>
+            <option>Español</option>
+            <option>Darija marroquí</option>
+          </select></label>
+          <label>Estilo opcional<input name="speechGuide" id="convertSpeechGuide" placeholder="Ej: joven, natural y enérgico"></label>
+          <button class="tool-primary" type="submit">Cambiar voz</button>
+        </form>
+        <div class="hidden convert-result" id="convertResult">
+          <audio id="convertAudio" controls></audio>
+          <a class="download-link" id="convertDownload" download="voz-convertida-bookforge.wav">Descargar voz convertida</a>
+          <div class="transcription"><strong>Texto final</strong><p id="convertTranscription"></p></div>
+        </div>
+      </div>
       <div class="tool-grid">
         <form class="tool-card" id="voiceForm">
           <p class="eyebrow">Generador de voz</p>

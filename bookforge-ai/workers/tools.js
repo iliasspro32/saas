@@ -20,6 +20,7 @@ export default {
     try {
       const url = new URL(request.url);
       if (url.pathname.endsWith("/landing")) return await generateLanding(request, env);
+      if (url.pathname.endsWith("/voice-convert")) return await convertVoice(request, env);
       if (url.pathname.endsWith("/voice-synthesize")) return await synthesizeVoice(request, env);
       if (url.pathname.endsWith("/voice-clone")) return await analyzeVoice(request, env);
       return json({ error: "Tool not found" }, 404);
@@ -64,14 +65,49 @@ Devuelve únicamente el HTML completo.`;
   return json({ html });
 }
 
+async function convertVoice(request, env) {
+  const body = await readJson(request);
+  const mediaData = String(body.mediaData || "");
+  const mimeType = clean(body.mimeType || "audio/wav", 80);
+  const voiceName = voices.some((voice) => voice.id === body.voiceName) ? body.voiceName : "Zephyr";
+  const language = clean(body.language || "same", 60);
+  const guide = clean(body.speechGuide || "", 500);
+  if (!mediaData) throw httpError("Sube un archivo de audio o vídeo con tu voz.", 400);
+  if (mediaData.length > 13_500_000) throw httpError("El archivo es demasiado grande. Usa un audio o vídeo corto de menos de 10 MB.", 413);
+  const apiKey = requireGemini(env);
+  const base64 = mediaData.includes(";base64,") ? mediaData.split(";base64,")[1] : mediaData;
+  const languageRule = language === "same"
+    ? "Conserva el idioma original del audio."
+    : `Traduce el mensaje de forma natural a ${language}.`;
+
+  const transcriptionResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { inline_data: { mime_type: mimeType, data: base64 } },
+        { text: `Transcribe el mensaje de este audio o vídeo. ${languageRule} Devuelve solamente el texto final que debe pronunciar la nueva voz, sin explicaciones.` }
+      ] }]
+    })
+  });
+  const transcriptionData = await transcriptionResponse.json().catch(() => ({}));
+  if (!transcriptionResponse.ok) throw httpError(transcriptionData.error?.message || "Gemini no pudo procesar el archivo.", transcriptionResponse.status);
+  const transcription = clean(transcriptionData.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "", 2600);
+  if (!transcription) throw httpError("No se pudo detectar una voz clara en el archivo.", 422);
+  return await createVoiceAudio(env, { text: transcription, voiceName, guide, transcription });
+}
+
 async function synthesizeVoice(request, env) {
   const body = await readJson(request);
   const text = clean(body.text, 1800);
   const voiceName = voices.some((voice) => voice.id === body.voiceName) ? body.voiceName : "Zephyr";
   const guide = clean(body.speechGuide || "", 500);
   if (!text) throw httpError("Escribe el texto que quieres convertir en voz.", 400);
-  const apiKey = requireGemini(env);
+  return await createVoiceAudio(env, { text, voiceName, guide, transcription: text });
+}
 
+async function createVoiceAudio(env, { text, voiceName, guide, transcription }) {
+  const apiKey = requireGemini(env);
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,7 +126,7 @@ async function synthesizeVoice(request, env) {
   const audioData = /l16|pcm/i.test(audio.mimeType || "")
     ? `data:audio/wav;base64,${pcmToWavBase64(audio.data)}`
     : `data:${audio.mimeType || "audio/wav"};base64,${audio.data}`;
-  return json({ audioData, voiceName });
+  return json({ audioData, voiceName, transcription });
 }
 
 async function analyzeVoice(request, env) {
