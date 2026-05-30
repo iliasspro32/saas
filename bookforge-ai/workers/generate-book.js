@@ -150,7 +150,7 @@ async function expandShortStudioBook(env, book, input) {
     };
     const needsRewrite = wordCount(chapter.content) < targetPerChapter || hasWrongLanguageLabels(chapter, input.language);
     if (!needsRewrite) {
-      chapters.push({ ...chapter, number: chapterNumber });
+      chapters.push(localizeStudioChapter({ ...chapter, number: chapterNumber }, input.language, labels));
       continue;
     }
 
@@ -179,14 +179,14 @@ Reglas obligatorias:
       const aiText = await callBookAi(env, prompt);
       const expanded = parseJson(aiText.text, aiText.provider);
       const content = String(expanded.content || "").trim();
-      chapters.push({
+      chapters.push(localizeStudioChapter({
         ...chapter,
         number: chapterNumber,
         title: String(expanded.title || chapter.title || `${labels.chapter} ${chapterNumber}`).trim(),
         content: content || chapter.content
-      });
+      }, input.language, labels));
     } catch {
-      chapters.push({ ...chapter, number: chapterNumber });
+      chapters.push(localizeStudioChapter({ ...chapter, number: chapterNumber }, input.language, labels));
     }
   }
 
@@ -238,7 +238,25 @@ Reglas:
 
 function hasWrongLanguageLabels(chapter, language) {
   if (!isArabicLanguage(language)) return false;
-  return /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(`${chapter.title || ""}\n${chapter.content || ""}`);
+  return !hasArabicScript(chapter.title) || /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(`${chapter.title || ""}\n${chapter.content || ""}`);
+}
+
+function hasArabicScript(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ""));
+}
+
+function localizeStudioChapter(chapter, language, labels) {
+  if (!isArabicLanguage(language)) return chapter;
+  const number = Number(chapter.number || 1);
+  const title = hasArabicScript(chapter.title) ? chapter.title : `${labels.chapter} ${number}`;
+  const content = String(chapter.content || "")
+    .replace(/\bcap[ií]tulo\b/gi, labels.chapter)
+    .replace(/\bsecci[oó]n\b/gi, labels.section)
+    .replace(/\bintroducci[oó]n\b/gi, labels.introduction)
+    .replace(/\bconclusi[oó]n\b/gi, labels.conclusion)
+    .replace(/\bejercicio\b/gi, labels.exercise)
+    .replace(/\b[ií]ndice\b/gi, labels.toc);
+  return { ...chapter, number, title, content };
 }
 
 function stripChapterPrefix(value) {
