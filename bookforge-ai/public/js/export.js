@@ -16,7 +16,7 @@
   }
 
   async function pdfUniversal(book) {
-    if (isArabicLanguage(book.idioma)) return printArabicBook(book);
+    if (isArabicBook(book)) return printArabicBook(book);
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
     buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 64, topMargin: 82, chapterTop: 96, fontSize: 12, lineHeight: 18, style: "universal" });
@@ -24,7 +24,7 @@
   }
 
   async function pdfPrint(book) {
-    if (isArabicLanguage(book.idioma)) return printArabicBook(book);
+    if (isArabicBook(book)) return printArabicBook(book);
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
     buildBookPdf(doc, book, { width: 432, height: 648, margin: 54, topMargin: 68, chapterTop: 82, fontSize: 10.7, lineHeight: 16.2, style: "print" });
@@ -32,7 +32,7 @@
   }
 
   function buildBookPdf(doc, book, settings) {
-    settings.rtl = isArabicLanguage(book.idioma);
+    settings.rtl = isArabicBook(book);
     settings.labels = localizedLabels(book.idioma);
     const page = { n: 0 };
     const cover = book.portada || {};
@@ -291,6 +291,10 @@
     return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
   }
 
+  function isArabicBook(book) {
+    return isArabicLanguage(book?.idioma) || /[\u0600-\u06FF]/.test(JSON.stringify(book || {}));
+  }
+
   function localizedLabels(language) {
     if (isArabicLanguage(language)) {
       return {
@@ -342,7 +346,7 @@
     zip.folder("META-INF").file("container.xml", `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
     const oebps = zip.folder("OEBPS");
     oebps.file("content.opf", `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">${id}</dc:identifier><dc:title>${escapeXml(book.titulo)}</dc:title><dc:language>${escapeXml(book.idioma || "es")}</dc:language><dc:creator>${escapeXml(book.autor || "")}</dc:creator></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="chapters" href="chapters.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapters"/></spine></package>`);
-    const dir = isArabicLanguage(book.idioma) ? "rtl" : "ltr";
+    const dir = isArabicBook(book) ? "rtl" : "ltr";
     oebps.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}"><body><nav epub:type="toc"><ol><li><a href="chapters.xhtml">${escapeXml(book.titulo)}</a></li></ol></nav></body></html>`);
     oebps.file("chapters.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}"><head><title>${escapeXml(book.titulo)}</title><style>body{direction:${dir};text-align:${dir === "rtl" ? "right" : "left"};line-height:1.7;}</style></head><body><h1>${escapeXml(book.titulo)}</h1>${allChapterText(book)}</body></html>`);
     const blob = await zip.generateAsync({ type: "blob", mimeType: "application/epub+zip", compression: "DEFLATE" });
@@ -356,7 +360,7 @@
     zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
     const word = zip.folder("word");
     const labels = localizedLabels(book.idioma);
-    const rtl = isArabicLanguage(book.idioma);
+    const rtl = isArabicBook(book);
     const paragraphs = [
       book.titulo,
       book.subtitulo || "",

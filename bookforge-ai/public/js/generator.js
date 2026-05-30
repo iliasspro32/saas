@@ -473,7 +473,7 @@ function renderCover(book) {
 }
 
 function renderManuscript(book) {
-  const rtl = isArabicLanguage(book.idioma);
+  const rtl = isArabicBook(book);
   const labels = localizedLabels(book.idioma);
   const chapters = (book.contenido || []).map((chapter) => `
     <section class="book-page chapter" dir="${rtl ? "rtl" : "ltr"}" style="text-align:${rtl ? "right" : "left"}">
@@ -727,6 +727,10 @@ function shortLang(value) {
 
 function isArabicLanguage(language) {
   return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
+}
+
+function isArabicBook(book) {
+  return isArabicLanguage(book?.idioma) || /[\u0600-\u06FF]/.test(JSON.stringify(book || {}));
 }
 
 function targetWordsForPages(pages) {
