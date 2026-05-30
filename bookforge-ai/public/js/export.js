@@ -266,8 +266,11 @@
           <title>${escapeXml(book.titulo)}</title>
           <style>
             @page { size: A4; margin: 22mm; }
-            body { direction: rtl; text-align: right; font-family: "Amiri", "Noto Naskh Arabic", Arial, sans-serif; line-height: 1.85; color: #111827; }
-            article { break-after: page; }
+            body { counter-reset: printed-page; direction: rtl; text-align: right; font-family: "Amiri", "Noto Naskh Arabic", Arial, sans-serif; line-height: 1.85; color: #111827; }
+            article { position: relative; min-height: 245mm; break-after: page; counter-increment: printed-page; }
+            article::after { content: counter(printed-page); position: absolute; right: 0; bottom: 0; left: 0; color: #78716c; font-family: Arial, sans-serif; font-size: 11px; text-align: center; }
+            article.cover { counter-increment: none; }
+            article.cover::after { content: ""; }
             h1, h2, h3 { font-family: "Noto Kufi Arabic", "Noto Naskh Arabic", Arial, sans-serif; }
             h1 { font-size: 30px; margin-top: 30vh; }
             h2 { font-size: 22px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }

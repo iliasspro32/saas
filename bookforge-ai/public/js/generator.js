@@ -534,6 +534,13 @@ function renderManuscript(book) {
     </div>
   `;
   document.getElementById("bookPreview").innerHTML = html;
+  document.querySelectorAll("#bookPaper .book-page").forEach((page, index) => {
+    if (index === 0) return;
+    const footer = document.createElement("span");
+    footer.className = "page-number";
+    footer.textContent = String(index);
+    page.appendChild(footer);
+  });
 }
 
 function normalizeBook(book, payload, owner) {

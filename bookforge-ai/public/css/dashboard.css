@@ -375,6 +375,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
 }
 
 .book-page {
+  position: relative;
   min-height: 900px;
   margin: 0 auto 28px;
   padding: 72px 62px 58px;
@@ -382,6 +383,18 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary-2); box-
   border: 1px solid #e7dccb;
   box-shadow: 0 16px 50px rgba(23, 23, 23, .08);
   page-break-after: always;
+}
+
+.page-number {
+  position: absolute;
+  right: 0;
+  bottom: 22px;
+  left: 0;
+  color: #786f67;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .title-page {
