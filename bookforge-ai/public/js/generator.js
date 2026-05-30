@@ -734,8 +734,8 @@ function isArabicBook(book) {
 }
 
 function targetWordsForPages(pages) {
-  const safePages = Math.max(5, Math.min(500, Number(pages || 5)));
-  return Math.max(2200, safePages * 430);
+  const safePages = Math.max(10, Math.min(500, Number(pages || 10)));
+  return Math.max(4300, safePages * 430);
 }
 
 function languageInstruction(language) {

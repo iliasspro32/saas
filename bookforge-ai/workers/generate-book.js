@@ -57,7 +57,8 @@ async function generateBook(request, env) {
   const ai = await callBookAi(env, prompt);
   const book = parseJson(ai.text, ai.provider);
   const reviewedBook = await qualityPass(env, book, clean);
-  const completed = normalizeBook(reviewedBook, clean, user.email);
+  let completed = normalizeBook(reviewedBook, clean, user.email);
+  completed = await expandShortClassicBook(env, completed, clean);
   const id = crypto.randomUUID();
 
   if (env.BOOKFORGE_KV) {
@@ -140,6 +141,7 @@ async function expandShortStudioBook(env, book, input) {
   const languageRule = languageInstruction(input.language);
   const labels = localizedLabels(input.language);
   const chapters = [];
+  let remainingExpansionCalls = 18;
 
   for (let index = 0; index < input.chaptersCount; index += 1) {
     const chapterNumber = index + 1;
@@ -154,16 +156,20 @@ async function expandShortStudioBook(env, book, input) {
       continue;
     }
 
-    const prompt = `Escribe o reescribe este capítulo completo para un ebook profesional.
+    let expandedChapter = { ...chapter, number: chapterNumber };
+    for (let attempt = 0; attempt < 2 && remainingExpansionCalls > 0; attempt += 1) {
+      if (wordCount(expandedChapter.content) >= targetPerChapter && !hasWrongLanguageLabels(expandedChapter, input.language)) break;
+      remainingExpansionCalls -= 1;
+      const prompt = `Escribe o reescribe este capítulo completo para un ebook profesional.
 
 Libro: ${book.title}
 Tema: ${input.topic}
 Audiencia: ${input.audience}
 Tono: ${input.tone}
-${labels.chapter} ${chapterNumber}: ${chapter.title}
+${labels.chapter} ${chapterNumber}: ${expandedChapter.title}
 
 Contenido actual:
-${chapter.content || "No existe todavía. Créalo desde cero con profundidad editorial."}
+${expandedChapter.content || "No existe todavía. Créalo desde cero con profundidad editorial."}
 
 Reglas obligatorias:
 - ${languageRule}
@@ -175,19 +181,22 @@ Reglas obligatorias:
 - No menciones que estás escribiendo o reescribiendo.
 - Devuelve SOLO JSON válido: { "title": "título localizado del capítulo", "content": "texto completo del capítulo" }`;
 
-    try {
-      const aiText = await callBookAi(env, prompt);
-      const expanded = parseJson(aiText.text, aiText.provider);
-      const content = String(expanded.content || "").trim();
-      chapters.push(localizeStudioChapter({
-        ...chapter,
-        number: chapterNumber,
-        title: String(expanded.title || chapter.title || `${labels.chapter} ${chapterNumber}`).trim(),
-        content: content || chapter.content
-      }, input.language, labels));
-    } catch {
-      chapters.push(localizeStudioChapter({ ...chapter, number: chapterNumber }, input.language, labels));
+      try {
+        const aiText = await callBookAi(env, prompt);
+        const expanded = parseJson(aiText.text, aiText.provider);
+        const content = String(expanded.content || "").trim();
+        if (wordCount(content) > wordCount(expandedChapter.content)) {
+          expandedChapter = {
+            ...expandedChapter,
+            title: String(expanded.title || expandedChapter.title || `${labels.chapter} ${chapterNumber}`).trim(),
+            content
+          };
+        }
+      } catch {
+        break;
+      }
     }
+    chapters.push(localizeStudioChapter(expandedChapter, input.language, labels));
   }
 
   const frontMatter = await expandStudioFrontMatter(env, book, input);
@@ -199,6 +208,83 @@ Reglas obligatorias:
     tableOfContents: chapters.map((chapter) => `${labels.chapter} ${chapter.number}: ${stripChapterPrefix(chapter.title)}`),
     chapters,
   };
+}
+
+async function expandShortClassicBook(env, book, input) {
+  const targetPerChapter = Math.max(700, Math.ceil(targetWordsForPages(input.pages) / Math.max(1, input.capitulos)));
+  const labels = localizedLabels(input.idioma);
+  const sourceChapters = Array.isArray(book.contenido) ? book.contenido : [];
+  const chapters = [];
+  let remainingExpansionCalls = 18;
+
+  for (let index = 0; index < input.capitulos; index += 1) {
+    const existingChapter = sourceChapters[index];
+    const number = Number(existingChapter?.capitulo ?? index + 1);
+    let chapter = existingChapter || {
+      capitulo: number,
+      titulo: `${labels.chapter} ${number}`,
+      introduccion: "",
+      secciones: [],
+      conclusion: "",
+      ejercicio: ""
+    };
+
+    for (let attempt = 0; attempt < 2 && remainingExpansionCalls > 0; attempt += 1) {
+      if (wordCount(classicChapterText(chapter)) >= targetPerChapter && !hasWrongLanguageLabels(chapter, input.idioma)) break;
+      remainingExpansionCalls -= 1;
+      const prompt = `Amplía este capítulo de un ebook profesional hasta alcanzar su extensión real.
+
+Libro: ${book.titulo}
+Tema: ${input.tema}
+Idioma obligatorio: ${input.idioma}
+${labels.chapter} ${number}: ${chapter.titulo}
+Extensión mínima obligatoria del capítulo: ${targetPerChapter} palabras.
+
+Reglas:
+- ${languageInstruction(input.idioma)}
+- Conserva el tema, pero desarrolla explicaciones, ejemplos, pasos prácticos y matices útiles.
+- Incluye mínimo 3 secciones completas, conclusión y ejercicio.
+- No resumas. No mezcles idiomas. No devuelvas texto fuera del JSON.
+
+Capítulo actual:
+${JSON.stringify(chapter)}
+
+Devuelve SOLO JSON válido:
+{ "capitulo": ${number}, "titulo": "string", "introduccion": "string", "secciones": [{"subtitulo": "string", "contenido": "string"}], "conclusion": "string", "ejercicio": "string" }`;
+
+      try {
+        const aiText = await callBookAi(env, prompt);
+        const candidate = parseJson(aiText.text, aiText.provider);
+        if (wordCount(classicChapterText(candidate)) > wordCount(classicChapterText(chapter))) {
+          chapter = { ...chapter, ...candidate, capitulo: number };
+        }
+      } catch {
+        break;
+      }
+    }
+    chapters.push(chapter);
+  }
+
+  return {
+    ...book,
+    contenido: chapters,
+    indice: chapters.map((chapter) => ({
+      capitulo: chapter.capitulo,
+      titulo: chapter.titulo,
+      descripcion: String(chapter.descripcion || "").trim()
+    })),
+    paginas_estimadas: input.pages
+  };
+}
+
+function classicChapterText(chapter) {
+  return [
+    chapter?.titulo,
+    chapter?.introduccion,
+    ...(Array.isArray(chapter?.secciones) ? chapter.secciones.flatMap((section) => [section.subtitulo, section.contenido]) : []),
+    chapter?.conclusion,
+    chapter?.ejercicio
+  ].filter(Boolean).join("\n");
 }
 
 async function expandStudioFrontMatter(env, book, input) {
@@ -238,7 +324,8 @@ Reglas:
 
 function hasWrongLanguageLabels(chapter, language) {
   if (!isArabicLanguage(language)) return false;
-  return !hasArabicScript(chapter.title) || /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(`${chapter.title || ""}\n${chapter.content || ""}`);
+  const text = `${chapter.title || chapter.titulo || ""}\n${chapter.content || classicChapterText(chapter)}`;
+  return !hasArabicScript(text) || /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(text);
 }
 
 function hasArabicScript(value) {
@@ -281,8 +368,8 @@ function wordCount(value) {
 }
 
 function targetWordsForPages(pages) {
-  const safePages = Math.max(5, Math.min(500, Number(pages || 5)));
-  return Math.max(2200, safePages * 430);
+  const safePages = Math.max(10, Math.min(500, Number(pages || 10)));
+  return Math.max(4300, safePages * 430);
 }
 
 function isArabicLanguage(language) {
@@ -339,7 +426,7 @@ function validateStudioInput(input) {
   }
 
   const chaptersCount = Math.max(1, Math.min(80, Number(input.chaptersCount || 4)));
-  const targetPages = Math.max(5, Math.min(500, Number(input.targetPages || 20)));
+  const targetPages = Math.max(10, Math.min(500, Number(input.targetPages || 20)));
   const language = String(input.language || "Español").slice(0, 80);
 
   return {
@@ -466,7 +553,7 @@ function validateInput(input) {
   const chapters = Number(input.capitulos);
   const pages = Number(input.pages);
   if (![5, 10, 15, 20, 30, 40].includes(chapters)) throw new Error("Invalid chapter count");
-  if (![5, 10, 15, 20, 30, 40, 50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
+  if (![10, 15, 20, 30, 40, 50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
   return {
     titulo: String(input.titulo).slice(0, 140),
     tema: String(input.tema).slice(0, 3000),
