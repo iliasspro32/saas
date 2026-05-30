@@ -78,7 +78,7 @@ export function GeneratorForm() {
           </div>
         </div>
         <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_260px]">
-          <pre className="min-h-[480px] whitespace-pre-wrap rounded-lg bg-slate-50 p-5 text-sm leading-7 text-slate-800 dark:bg-slate-950 dark:text-slate-100">{output || "Your AI ad scripts, hooks, captions and testing notes will appear here."}</pre>
+          <pre dir="auto" className="min-h-[480px] whitespace-pre-wrap rounded-lg bg-slate-50 p-5 text-sm leading-7 text-slate-800 dark:bg-slate-950 dark:text-slate-100">{output || "Your AI ad scripts, hooks, captions and testing notes will appear here."}</pre>
           <div className="space-y-3">
             {["Hook score", "Compliance check", "Audience fit", "Launch readiness"].map((item, index) => (
               <div key={item} className="rounded-lg border border-slate-200 p-4 dark:border-white/10">

@@ -5,7 +5,9 @@ import {
   CreditCard,
   History,
   LayoutDashboard,
+  LayoutTemplate,
   Megaphone,
+  Mic2,
   PlugZap,
   Rocket,
   Settings,
@@ -17,6 +19,8 @@ import {
 const items = [
   { href: "/dashboard", label: "Command center", icon: LayoutDashboard },
   { href: "/dashboard/generator", label: "Creative Studio", icon: Wand2 },
+  { href: "/dashboard/voice", label: "Voice Studio", icon: Mic2 },
+  { href: "/dashboard/landing-studio", label: "Landing Studio", icon: LayoutTemplate },
   { href: "/dashboard/launcher", label: "Bulk Launcher", icon: Rocket },
   { href: "/dashboard/copilot", label: "AI Copilot", icon: Bot },
   { href: "/dashboard/rules", label: "Smart Rules", icon: SlidersHorizontal },

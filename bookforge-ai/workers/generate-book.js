@@ -1,4 +1,16 @@
-const SYSTEM_PROMPT = "Eres un autor, editor y maquetador profesional con 20 años creando ebooks para múltiples plataformas digitales. Generas libros completos, humanos, bien estructurados, útiles y exportables a PDF/EPUB/DOCX sin depender de Amazon KDP, Etsy ni ninguna tienda concreta. Escribe como experto humano, no como IA. SIEMPRE responde en JSON válido sin texto adicional fuera del JSON.";
+const SYSTEM_PROMPT = `Eres un coautor literario de élite, editor editorial multilingüe y maquetador profesional con 20 años de experiencia.
+Ayudas a conceptualizar, estructurar, escribir y pulir libros de alta calidad, de ficción y no ficción, aptos para publicación tradicional, Kindle Direct Publishing y distribución universal en PDF, EPUB y DOCX.
+
+Reglas editoriales:
+- Adapta el tono al género: literario, académico, persuasivo, técnico o práctico según corresponda.
+- Localiza el texto de forma nativa. No traduzcas literalmente: adapta modismos, metáforas, ritmo y estructuras gramaticales al idioma objetivo.
+- Mantén consistencia terminológica estricta en todo el manuscrito.
+- Usa las convenciones editoriales propias del idioma objetivo, incluyendo puntuación, comillas y diálogos.
+- Evita clichés salvo que el género los requiera.
+- Usa vocabulario rico y variado sin repeticiones innecesarias.
+- Genera capítulos completos, ganchos iniciales sólidos, transiciones naturales y conclusiones potentes.
+- Escribe como experto humano, no como IA.
+- Cuando se solicite JSON, responde siempre con JSON válido sin texto adicional fuera del JSON.`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +57,8 @@ async function generateBook(request, env) {
   const ai = await callBookAi(env, prompt);
   const book = parseJson(ai.text, ai.provider);
   const reviewedBook = await qualityPass(env, book, clean);
-  const completed = normalizeBook(reviewedBook, clean, user.email);
+  let completed = normalizeBook(reviewedBook, clean, user.email);
+  completed = await expandShortClassicBook(env, completed, clean);
   const id = crypto.randomUUID();
 
   if (env.BOOKFORGE_KV) {
@@ -61,10 +74,11 @@ async function generateStudioBook(input, env) {
   await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
-  const targetWords = Math.max(9000, clean.targetPages * 420);
-  const wordsPerChapter = Math.max(1000, Math.ceil(targetWords / chaptersCount));
+  const targetWords = targetWordsForPages(clean.targetPages);
+  const wordsPerChapter = Math.max(450, Math.ceil(targetWords / chaptersCount));
   const sectionsPerChapter = Math.max(3, Math.min(5, Math.ceil(wordsPerChapter / 900)));
   const languageRule = languageInstruction(clean.language);
+  const labels = localizedLabels(clean.language);
   const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
@@ -81,10 +95,12 @@ Cada capítulo debe incluir ${sectionsPerChapter} a 5 secciones internas desarro
 
 Reglas:
 - ${languageRule}
+- Todos los títulos, subtítulos, índice, introducción, capítulos, secciones, conclusión, ejercicios, metadata y portada deben estar en ${clean.language}. No dejes etiquetas en español si el idioma elegido no es español.
+- Usa estas etiquetas localizadas cuando necesites nombrar partes: capítulo="${labels.chapter}", sección="${labels.section}", introducción="${labels.introduction}", conclusión="${labels.conclusion}", ejercicio="${labels.exercise}", índice="${labels.toc}", recursos="${labels.resources}".
 - No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
 - Capítulos ordenados, coherentes, largos y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
-- Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
-- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content": "Sección 1.1: ...", "Sección 1.2: ...".
+- Incluye un capítulo 0 de avisos importantes, escrito en ${clean.language}, con mínimo 500 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
+- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content" en ${clean.language}.
 - Cada sección debe tener entre 300 y 450 palabras o 10 a 15 párrafos breves. No entregues secciones de 2 o 3 párrafos.
 - Usa enumeraciones y viñetas cuando aporten claridad. No uses emojis ni líneas decorativas.
 - Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
@@ -121,46 +137,217 @@ Devuelve exactamente:
 }
 
 async function expandShortStudioBook(env, book, input) {
-  const targetPerChapter = Math.min(1100, Math.max(650, Math.ceil(input.targetPages * 220 / Math.max(1, input.chaptersCount))));
+  const targetPerChapter = Math.max(450, Math.ceil(targetWordsForPages(input.targetPages) / Math.max(1, input.chaptersCount)));
   const languageRule = languageInstruction(input.language);
-  const chapters = await Promise.all(book.chapters.map(async (chapter) => {
-    if (wordCount(chapter.content) >= targetPerChapter) return chapter;
-    const prompt = `Reescribe y amplía este capítulo para un ebook profesional.
+  const labels = localizedLabels(input.language);
+  const chapters = [];
+  let remainingExpansionCalls = 18;
+
+  for (let index = 0; index < input.chaptersCount; index += 1) {
+    const chapterNumber = index + 1;
+    const chapter = book.chapters.find((item) => Number(item.number) === chapterNumber) || book.chapters[index] || {
+      number: chapterNumber,
+      title: `${labels.chapter} ${chapterNumber}`,
+      content: ""
+    };
+    const needsRewrite = wordCount(chapter.content) < targetPerChapter || hasWrongLanguageLabels(chapter, input.language);
+    if (!needsRewrite) {
+      chapters.push(localizeStudioChapter({ ...chapter, number: chapterNumber }, input.language, labels));
+      continue;
+    }
+
+    let expandedChapter = { ...chapter, number: chapterNumber };
+    for (let attempt = 0; attempt < 2 && remainingExpansionCalls > 0; attempt += 1) {
+      if (wordCount(expandedChapter.content) >= targetPerChapter && !hasWrongLanguageLabels(expandedChapter, input.language)) break;
+      remainingExpansionCalls -= 1;
+      const prompt = `Escribe o reescribe este capítulo completo para un ebook profesional.
 
 Libro: ${book.title}
 Tema: ${input.topic}
 Audiencia: ${input.audience}
 Tono: ${input.tone}
-Capítulo ${chapter.number}: ${chapter.title}
+${labels.chapter} ${chapterNumber}: ${expandedChapter.title}
 
 Contenido actual:
-${chapter.content}
+${expandedChapter.content || "No existe todavía. Créalo desde cero con profundidad editorial."}
 
 Reglas obligatorias:
 - ${languageRule}
+- Todo el texto devuelto debe estar en ${input.language}, incluyendo subtítulos y etiquetas. Usa "${labels.section}" para secciones, "${labels.conclusion}" para conclusiones y "${labels.exercise}" para ejercicios.
 - Escribe mínimo ${targetPerChapter} palabras.
 - Divide el capítulo con subtítulos claros.
 - Incluye explicación, ejemplos concretos, errores a evitar, pasos prácticos y un ejercicio final.
 - No mezcles idiomas.
-- No menciones que estás reescribiendo.
-- Devuelve SOLO JSON válido: { "content": "texto completo del capítulo" }`;
+- No menciones que estás escribiendo o reescribiendo.
+- Devuelve SOLO JSON válido: { "title": "título localizado del capítulo", "content": "texto completo del capítulo" }`;
 
-    try {
-      const aiText = await callBookAi(env, prompt);
-      const expanded = parseJson(aiText.text, aiText.provider);
-      const content = String(expanded.content || "").trim();
-      return content ? { ...chapter, content } : chapter;
-    } catch {
-      return chapter;
+      try {
+        const aiText = await callBookAi(env, prompt);
+        const expanded = parseJson(aiText.text, aiText.provider);
+        const content = String(expanded.content || "").trim();
+        if (wordCount(content) > wordCount(expandedChapter.content)) {
+          expandedChapter = {
+            ...expandedChapter,
+            title: String(expanded.title || expandedChapter.title || `${labels.chapter} ${chapterNumber}`).trim(),
+            content
+          };
+        }
+      } catch {
+        break;
+      }
     }
-  }));
+    chapters.push(localizeStudioChapter(expandedChapter, input.language, labels));
+  }
+
+  const frontMatter = await expandStudioFrontMatter(env, book, input);
 
   return {
     ...book,
-    introduction: ensureMinimumText(book.introduction, input, "introducción"),
-    conclusion: ensureMinimumText(book.conclusion, input, "conclusión"),
-    chapters
+    introduction: frontMatter.introduction,
+    conclusion: frontMatter.conclusion,
+    tableOfContents: chapters.map((chapter) => `${labels.chapter} ${chapter.number}: ${stripChapterPrefix(chapter.title)}`),
+    chapters,
   };
+}
+
+async function expandShortClassicBook(env, book, input) {
+  const targetPerChapter = Math.max(700, Math.ceil(targetWordsForPages(input.pages) / Math.max(1, input.capitulos)));
+  const labels = localizedLabels(input.idioma);
+  const sourceChapters = Array.isArray(book.contenido) ? book.contenido : [];
+  const chapters = [];
+  let remainingExpansionCalls = 18;
+
+  for (let index = 0; index < input.capitulos; index += 1) {
+    const existingChapter = sourceChapters[index];
+    const number = Number(existingChapter?.capitulo ?? index + 1);
+    let chapter = existingChapter || {
+      capitulo: number,
+      titulo: `${labels.chapter} ${number}`,
+      introduccion: "",
+      secciones: [],
+      conclusion: "",
+      ejercicio: ""
+    };
+
+    for (let attempt = 0; attempt < 2 && remainingExpansionCalls > 0; attempt += 1) {
+      if (wordCount(classicChapterText(chapter)) >= targetPerChapter && !hasWrongLanguageLabels(chapter, input.idioma)) break;
+      remainingExpansionCalls -= 1;
+      const prompt = `Amplía este capítulo de un ebook profesional hasta alcanzar su extensión real.
+
+Libro: ${book.titulo}
+Tema: ${input.tema}
+Idioma obligatorio: ${input.idioma}
+${labels.chapter} ${number}: ${chapter.titulo}
+Extensión mínima obligatoria del capítulo: ${targetPerChapter} palabras.
+
+Reglas:
+- ${languageInstruction(input.idioma)}
+- Conserva el tema, pero desarrolla explicaciones, ejemplos, pasos prácticos y matices útiles.
+- Incluye mínimo 3 secciones completas, conclusión y ejercicio.
+- No resumas. No mezcles idiomas. No devuelvas texto fuera del JSON.
+
+Capítulo actual:
+${JSON.stringify(chapter)}
+
+Devuelve SOLO JSON válido:
+{ "capitulo": ${number}, "titulo": "string", "introduccion": "string", "secciones": [{"subtitulo": "string", "contenido": "string"}], "conclusion": "string", "ejercicio": "string" }`;
+
+      try {
+        const aiText = await callBookAi(env, prompt);
+        const candidate = parseJson(aiText.text, aiText.provider);
+        if (wordCount(classicChapterText(candidate)) > wordCount(classicChapterText(chapter))) {
+          chapter = { ...chapter, ...candidate, capitulo: number };
+        }
+      } catch {
+        break;
+      }
+    }
+    chapters.push(chapter);
+  }
+
+  return {
+    ...book,
+    contenido: chapters,
+    indice: chapters.map((chapter) => ({
+      capitulo: chapter.capitulo,
+      titulo: chapter.titulo,
+      descripcion: String(chapter.descripcion || "").trim()
+    })),
+    paginas_estimadas: input.pages
+  };
+}
+
+function classicChapterText(chapter) {
+  return [
+    chapter?.titulo,
+    chapter?.introduccion,
+    ...(Array.isArray(chapter?.secciones) ? chapter.secciones.flatMap((section) => [section.subtitulo, section.contenido]) : []),
+    chapter?.conclusion,
+    chapter?.ejercicio
+  ].filter(Boolean).join("\n");
+}
+
+async function expandStudioFrontMatter(env, book, input) {
+  const introduction = String(book.introduction || "").trim();
+  const conclusion = String(book.conclusion || "").trim();
+  if (wordCount(introduction) >= 180 && wordCount(conclusion) >= 180 && !hasWrongLanguageLabels({ content: `${introduction}\n${conclusion}` }, input.language)) {
+    return { introduction, conclusion };
+  }
+
+  const labels = localizedLabels(input.language);
+  const prompt = `Completa la introducción y la conclusión de este ebook profesional.
+Título: ${book.title}
+Tema: ${input.topic}
+Audiencia: ${input.audience}
+Idioma obligatorio: ${input.language}
+
+Reglas:
+- ${languageInstruction(input.language)}
+- Escribe una ${labels.introduction} de mínimo 220 palabras y una ${labels.conclusion} de mínimo 220 palabras.
+- Mantén tono humano, específico y útil. No mezcles idiomas.
+- Devuelve SOLO JSON válido: { "introduction": "texto completo", "conclusion": "texto completo" }`;
+
+  try {
+    const aiText = await callBookAi(env, prompt);
+    const expanded = parseJson(aiText.text, aiText.provider);
+    return {
+      introduction: String(expanded.introduction || introduction || ensureMinimumText("", input, "introducción")).trim(),
+      conclusion: String(expanded.conclusion || conclusion || ensureMinimumText("", input, "conclusión")).trim()
+    };
+  } catch {
+    return {
+      introduction: ensureMinimumText(introduction, input, "introducción"),
+      conclusion: ensureMinimumText(conclusion, input, "conclusión")
+    };
+  }
+}
+
+function hasWrongLanguageLabels(chapter, language) {
+  if (!isArabicLanguage(language)) return false;
+  const text = `${chapter.title || chapter.titulo || ""}\n${chapter.content || classicChapterText(chapter)}`;
+  return !hasArabicScript(text) || /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(text);
+}
+
+function hasArabicScript(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ""));
+}
+
+function localizeStudioChapter(chapter, language, labels) {
+  if (!isArabicLanguage(language)) return chapter;
+  const number = Number(chapter.number || 1);
+  const title = hasArabicScript(chapter.title) ? chapter.title : `${labels.chapter} ${number}`;
+  const content = String(chapter.content || "")
+    .replace(/\bcap[ií]tulo\b/gi, labels.chapter)
+    .replace(/\bsecci[oó]n\b/gi, labels.section)
+    .replace(/\bintroducci[oó]n\b/gi, labels.introduction)
+    .replace(/\bconclusi[oó]n\b/gi, labels.conclusion)
+    .replace(/\bejercicio\b/gi, labels.exercise)
+    .replace(/\b[ií]ndice\b/gi, labels.toc);
+  return { ...chapter, number, title, content };
+}
+
+function stripChapterPrefix(value) {
+  return String(value || "").replace(/^(Capítulo|Chapter|الفصل|Chapitre|Kapitel|Capitolo)\s*\d+[:.\s-]*/i, "").trim();
 }
 
 function ensureMinimumText(value, input, label) {
@@ -180,15 +367,57 @@ function wordCount(value) {
   return String(value || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
+function targetWordsForPages(pages) {
+  const safePages = Math.max(10, Math.min(500, Number(pages || 10)));
+  return Math.max(4300, safePages * 430);
+}
+
 function isArabicLanguage(language) {
   return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
 }
 
 function languageInstruction(language) {
   if (isArabicLanguage(language)) {
-    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+    return "اكتب كل المحتوى النهائي باللغة العربية الفصحى الحديثة فقط. لا تستخدم الإسبانية أو الإنجليزية أو أي لغة أخرى إلا للأسماء الخاصة الضرورية. يجب أن تكون كل العناوين والفصول والفهارس والخاتمة والتمارين والبيانات الوصفية بالعربية، وبأسلوب طبيعي مناسب لاتجاه RTL.";
   }
   return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
+}
+
+function localizedLabels(language) {
+  if (isArabicLanguage(language)) {
+    return {
+      chapter: "الفصل",
+      section: "القسم",
+      introduction: "المقدمة",
+      conclusion: "الخاتمة",
+      exercise: "تمرين عملي",
+      toc: "الفهرس",
+      resources: "موارد إضافية",
+      editorialInfo: "معلومات النشر",
+      destination: "الوجهة",
+      language: "اللغة",
+      category: "التصنيف التحريري",
+      estimatedPages: "عدد الصفحات التقديري",
+      description: "الوصف التحريري",
+      authorAbout: "نبذة عن المؤلف"
+    };
+  }
+  return {
+    chapter: "Capítulo",
+    section: "Sección",
+    introduction: "Introducción",
+    conclusion: "Conclusión",
+    exercise: "Ejercicio práctico",
+    toc: "Índice",
+    resources: "Recursos extra",
+    editorialInfo: "Información editorial",
+    destination: "Destino",
+    language: "Idioma",
+    category: "Categoría editorial",
+    estimatedPages: "Páginas estimadas",
+    description: "Descripción editorial",
+    authorAbout: "Sobre el autor"
+  };
 }
 
 function validateStudioInput(input) {
@@ -214,10 +443,11 @@ function validateStudioInput(input) {
 }
 
 function normalizeStudioBook(book, input, id) {
+  const labels = localizedLabels(input.language);
   const rawChapters = Array.isArray(book.chapters) ? book.chapters : [];
   const chapters = rawChapters.map((chapter, index) => ({
     number: Number(chapter.number || index + 1),
-    title: String(chapter.title || `Capítulo ${index + 1}`).trim(),
+    title: String(chapter.title || `${labels.chapter} ${index + 1}`).trim(),
     content: String(chapter.content || "").trim()
   })).filter((chapter) => chapter.content);
 
@@ -230,11 +460,11 @@ function normalizeStudioBook(book, input, id) {
     subtitle: String(book.subtitle || `Una guía profesional sobre ${input.topic}`).trim(),
     genre: String(book.genre || input.genre).trim(),
     author: String(book.author || input.author).trim(),
-    language: String(book.language || input.language).trim(),
+    language: String(input.language).trim(),
     introduction: String(book.introduction || "").trim(),
     tableOfContents: Array.isArray(book.tableOfContents) && book.tableOfContents.length
       ? book.tableOfContents.map((item) => String(item))
-      : chapters.map((chapter) => `Capítulo ${chapter.number}: ${chapter.title}`),
+      : chapters.map((chapter) => `${labels.chapter} ${chapter.number}: ${chapter.title}`),
     chapters,
     conclusion: String(book.conclusion || "").trim(),
     id,
@@ -323,7 +553,7 @@ function validateInput(input) {
   const chapters = Number(input.capitulos);
   const pages = Number(input.pages);
   if (![5, 10, 15, 20, 30, 40].includes(chapters)) throw new Error("Invalid chapter count");
-  if (![50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
+  if (![10, 15, 20, 30, 40, 50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
   return {
     titulo: String(input.titulo).slice(0, 140),
     tema: String(input.tema).slice(0, 3000),
@@ -340,8 +570,9 @@ function validateInput(input) {
 }
 
 function buildPrompt(data) {
-  const words = Math.max(16000, data.pages * 450);
-  const wordsPerChapter = Math.max(1200, Math.ceil(words / data.capitulos));
+  const words = targetWordsForPages(data.pages);
+  const wordsPerChapter = Math.max(450, Math.ceil(words / data.capitulos));
+  const labels = localizedLabels(data.idioma);
   return `Crea un ebook profesional completo, humano y universal:
 - Título: ${data.titulo}
 - Autor: ${data.autor}
@@ -359,9 +590,12 @@ function buildPrompt(data) {
 - Portada: incluye concepto visual completo, título, subtítulo, autor, paleta, composición y prompt para generar imagen
 
 Reglas editoriales obligatorias:
+- ${languageInstruction(data.idioma)}
+- Todos los campos del JSON deben estar escritos en ${data.idioma}: título, subtítulo, descripción, keywords, categoría, portada, índice, capítulos, secciones, conclusiones, ejercicios, recursos, sobre el autor y control de calidad.
+- Usa estas etiquetas localizadas cuando necesites nombrar partes: capítulo="${labels.chapter}", sección="${labels.section}", introducción="${labels.introduction}", conclusión="${labels.conclusion}", ejercicio="${labels.exercise}", índice="${labels.toc}", recursos="${labels.resources}".
 - No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o descarga PDF.
 - Escribe con voz humana: frases variadas, ejemplos realistas, criterio experto, transición natural entre ideas y cero relleno.
-- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea el capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea un capítulo 0 de avisos importantes en ${data.idioma} con mínimo 500 palabras.
 - Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
 - Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
 - No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
@@ -392,15 +626,15 @@ Devuelve SOLO este JSON:
     "prompt_imagen": "prompt detallado para generar la imagen de portada sin texto incrustado",
     "texto_contraportada": "texto comercial de contraportada"
   },
-  "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
+  "indice": [{"capitulo": 0, "titulo": "string en ${data.idioma}", "descripcion": "string en ${data.idioma}"}],
   "contenido": [
     {
       "capitulo": 0,
-      "titulo": "string",
-      "introduccion": "string de 300+ palabras",
-      "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "string de hasta 400 palabras, con párrafos humanos y viñetas si corresponde"}],
-      "conclusion": "string de 250+ palabras",
-      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica"
+      "titulo": "string en ${data.idioma}",
+      "introduccion": "string de 250+ palabras en ${data.idioma}",
+      "secciones": [{"subtitulo": "string en ${data.idioma}", "contenido": "string de 250 a 450 palabras en ${data.idioma}, con párrafos humanos y viñetas si corresponde"}],
+      "conclusion": "string de 180+ palabras en ${data.idioma}",
+      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica en ${data.idioma}"
     }
   ],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
@@ -442,7 +676,7 @@ async function callGemini(env, prompt) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      contents: [{ role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\n${prompt}` }] }],
       generationConfig: {
         temperature: 0.72,
         maxOutputTokens: maxTokens,
@@ -482,7 +716,7 @@ async function callOpenRouter(env, prompt) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: "Eres un autor y editor profesional. Devuelve solo JSON valido." },
+        { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
       temperature: 0.72,
@@ -553,7 +787,7 @@ function normalizeBook(book, input, email) {
     ...book,
     titulo: book.titulo || input.titulo,
     autor: book.autor || input.autor,
-    idioma: book.idioma || input.idioma,
+    idioma: input.idioma,
     plataforma: book.plataforma || input.plataforma,
     tipo: book.tipo || input.tipo,
     paginas_estimadas: Number(book.paginas_estimadas || input.pages),
