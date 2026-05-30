@@ -8,13 +8,15 @@
   }
 
   function allChapterText(book) {
+    const labels = localizedLabels(book.idioma);
     return (book.contenido || []).map((chapter) => {
       const sections = (chapter.secciones || []).map((section) => `<h2>${section.subtitulo}</h2><p>${section.contenido}</p>`).join("");
-      return `<h1>Capítulo ${chapter.capitulo}: ${chapter.titulo}</h1><p>${chapter.introduccion}</p>${sections}<h2>Conclusión</h2><p>${chapter.conclusion}</p><h2>Ejercicio</h2><p>${chapter.ejercicio}</p>`;
+      return `<h1>${labels.chapter} ${chapter.capitulo}: ${chapter.titulo}</h1><p>${chapter.introduccion}</p>${sections}<h2>${labels.conclusion}</h2><p>${chapter.conclusion}</p><h2>${labels.exercise}</h2><p>${chapter.ejercicio}</p>`;
     }).join("");
   }
 
   async function pdfUniversal(book) {
+    if (isArabicLanguage(book.idioma)) return printArabicBook(book);
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
     buildBookPdf(doc, book, { width: 595.28, height: 841.89, margin: 64, topMargin: 82, chapterTop: 96, fontSize: 12, lineHeight: 18, style: "universal" });
@@ -22,6 +24,7 @@
   }
 
   async function pdfPrint(book) {
+    if (isArabicLanguage(book.idioma)) return printArabicBook(book);
     if (!window.jspdf?.jsPDF) return alert("jsPDF no está cargado.");
     const doc = new window.jspdf.jsPDF({ unit: "pt", format: [432, 648], orientation: "portrait" });
     buildBookPdf(doc, book, { width: 432, height: 648, margin: 54, topMargin: 68, chapterTop: 82, fontSize: 10.7, lineHeight: 16.2, style: "print" });
@@ -29,6 +32,8 @@
   }
 
   function buildBookPdf(doc, book, settings) {
+    settings.rtl = isArabicLanguage(book.idioma);
+    settings.labels = localizedLabels(book.idioma);
     const page = { n: 0 };
     const cover = book.portada || {};
     const colors = cover.paleta?.length ? cover.paleta : ["#111827", "#4f46e5", "#f59e0b"];
@@ -47,7 +52,7 @@
 
     addPage(doc, settings, page);
     let y = settings.topMargin;
-    y = drawHeading(doc, "Recursos extra", y, settings, 22, page);
+    y = drawHeading(doc, settings.labels.resources, y, settings, 22, page);
     (book.recursos_extra || []).forEach((item) => {
       y = ensureSpace(doc, y, 90, settings, page);
       y = drawHeading(doc, text(item.titulo), y, settings, 15, page);
@@ -56,9 +61,9 @@
 
     addPage(doc, settings, page);
     y = settings.topMargin;
-    y = drawHeading(doc, "Conclusión final", y, settings, 22, page);
+    y = drawHeading(doc, settings.labels.conclusion, y, settings, 22, page);
     y = drawParagraph(doc, text(book.conclusion_final), y, settings, page);
-    y = drawHeading(doc, "Sobre el autor", y + 12, settings, 20, page);
+    y = drawHeading(doc, settings.labels.authorAbout, y + 12, settings, 20, page);
     drawParagraph(doc, text(book.sobre_el_autor), y, settings, page);
   }
 
@@ -116,12 +121,12 @@
 
   function drawMetadataPage(doc, book, settings, page) {
     let y = settings.topMargin;
-    y = drawHeading(doc, "Información editorial", y, settings, 22, page);
-    y = drawInfo(doc, "Destino", book.plataforma || "Universal", y, settings);
-    y = drawInfo(doc, "Idioma", book.idioma, y, settings);
-    y = drawInfo(doc, "Categoría editorial", book.categoria_editorial || book.categoria_kdp, y, settings);
-    y = drawInfo(doc, "Páginas estimadas", String(book.paginas_estimadas || ""), y, settings);
-    y = drawHeading(doc, "Descripción editorial", y + 10, settings, 16, page);
+    y = drawHeading(doc, settings.labels.editorialInfo, y, settings, 22, page);
+    y = drawInfo(doc, settings.labels.destination, book.plataforma || "Universal", y, settings);
+    y = drawInfo(doc, settings.labels.language, book.idioma, y, settings);
+    y = drawInfo(doc, settings.labels.category, book.categoria_editorial || book.categoria_kdp, y, settings);
+    y = drawInfo(doc, settings.labels.estimatedPages, String(book.paginas_estimadas || ""), y, settings);
+    y = drawHeading(doc, settings.labels.description, y + 10, settings, 16, page);
     y = drawParagraph(doc, text(book.descripcion_editorial || book.descripcion_kdp), y, settings, page);
     y = drawHeading(doc, "Keywords", y + 8, settings, 16, page);
     drawParagraph(doc, (book.keywords || []).join(", "), y, settings, page);
@@ -129,24 +134,24 @@
 
   function drawTocPage(doc, book, settings, page) {
     let y = settings.topMargin;
-    y = drawHeading(doc, "Índice", y, settings, 24, page);
+    y = drawHeading(doc, settings.labels.toc, y, settings, 24, page);
     (book.indice || []).forEach((item) => {
       y = ensureSpace(doc, y, 58, settings, page);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(138, 107, 45);
-      doc.text(`CAPÍTULO ${item.capitulo}`, settings.margin, y);
+      drawText(doc, `${settings.labels.chapter} ${item.capitulo}`, settings.margin, y, settings, { uppercase: true });
       y += 14;
       doc.setFont("times", "bold");
       doc.setFontSize(14);
       doc.setTextColor(17, 24, 39);
-      doc.text(text(item.titulo), settings.margin, y);
+      drawText(doc, text(item.titulo), settings.margin, y, settings);
       y += 16;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(96, 96, 96);
       const lines = doc.splitTextToSize(text(item.descripcion), settings.width - settings.margin * 2);
-      doc.text(lines, settings.margin, y);
+      drawText(doc, lines, settings.margin, y, settings);
       y += lines.length * 12 + 12;
     });
   }
@@ -156,7 +161,7 @@
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(138, 107, 45);
-    doc.text(`CAPÍTULO ${chapter.capitulo}`, settings.margin, y);
+    drawText(doc, `${settings.labels.chapter} ${chapter.capitulo}`, settings.margin, y, settings, { uppercase: true });
     y += 22;
     y = drawHeading(doc, text(chapter.titulo), y, settings, settings.style === "universal" ? 25 : 22, page);
     y += 10;
@@ -165,9 +170,9 @@
       y = drawHeading(doc, text(section.subtitulo), y + 14, settings, 16, page);
       y = drawParagraph(doc, text(section.contenido), y, settings, page);
     });
-    y = drawHeading(doc, "Conclusión", y + 14, settings, 16, page);
+    y = drawHeading(doc, settings.labels.conclusion, y + 14, settings, 16, page);
     y = drawParagraph(doc, text(chapter.conclusion), y, settings, page);
-    y = drawHeading(doc, "Ejercicio práctico", y + 14, settings, 15, page);
+    y = drawHeading(doc, settings.labels.exercise, y + 14, settings, 15, page);
     drawParagraph(doc, text(chapter.ejercicio), y, settings, page);
   }
 
@@ -192,7 +197,7 @@
     doc.setFontSize(size);
     doc.setTextColor(17, 24, 39);
     const lines = doc.splitTextToSize(text(heading), settings.width - settings.margin * 2);
-    doc.text(lines, settings.margin, y);
+    drawText(doc, lines, settings.margin, y, settings);
     return y + lines.length * (size + 5) + 12;
   }
 
@@ -200,11 +205,11 @@
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(138, 107, 45);
-    doc.text(String(label).toUpperCase(), settings.margin, y);
+    drawText(doc, String(label), settings.margin, y, settings, { uppercase: true });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(17, 24, 39);
-    doc.text(text(value), settings.margin + 120, y);
+    drawText(doc, text(value), settings.rtl ? settings.margin : settings.margin + 120, y, settings);
     return y + 22;
   }
 
@@ -217,7 +222,7 @@
       const lines = doc.splitTextToSize(paragraph, settings.width - settings.margin * 2);
       lines.forEach((line) => {
         y = ensureSpace(doc, y, settings.lineHeight + 8, settings, page);
-        doc.text(line, settings.margin, y);
+        drawText(doc, line, settings.margin, y, settings);
         y += settings.lineHeight;
       });
       y += 8;
@@ -240,6 +245,85 @@
     doc.setFillColor(r, g, b);
   }
 
+  function drawText(doc, value, x, y, settings, options = {}) {
+    const content = Array.isArray(value) ? value : [value];
+    const printable = content.map((item) => options.uppercase ? text(item).toUpperCase() : text(item));
+    if (settings.rtl) {
+      doc.text(printable, settings.width - settings.margin, y, { align: "right", isInputRtl: true });
+      return;
+    }
+    doc.text(printable, x, y);
+  }
+
+  function printArabicBook(book) {
+    const labels = localizedLabels(book.idioma);
+    const printable = window.open("", "_blank");
+    if (!printable) return alert("Permite ventanas emergentes para abrir la vista PDF en árabe.");
+    printable.document.write(`<!doctype html>
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeXml(book.titulo)}</title>
+          <style>
+            @page { size: A4; margin: 22mm; }
+            body { direction: rtl; text-align: right; font-family: "Amiri", "Noto Naskh Arabic", Arial, sans-serif; line-height: 1.85; color: #111827; }
+            article { break-after: page; }
+            h1, h2, h3 { font-family: "Noto Kufi Arabic", "Noto Naskh Arabic", Arial, sans-serif; }
+            h1 { font-size: 30px; margin-top: 30vh; }
+            h2 { font-size: 22px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
+            h3 { font-size: 17px; margin-top: 20px; }
+            p { white-space: pre-line; }
+            .cover { text-align: center; }
+          </style>
+        </head>
+        <body>
+          <article class="cover"><h1>${escapeXml(book.titulo)}</h1><p>${escapeXml(book.subtitulo || "")}</p><p>${escapeXml(book.autor || "")}</p></article>
+          <article><h2>${escapeXml(labels.description)}</h2><p>${escapeXml(book.descripcion_editorial || book.descripcion_kdp || "")}</p></article>
+          ${(book.contenido || []).map((chapter) => `<article><h2>${escapeXml(labels.chapter)} ${escapeXml(chapter.capitulo)}: ${escapeXml(chapter.titulo)}</h2><p>${escapeXml(chapter.introduccion || "")}</p>${(chapter.secciones || []).map((section) => `<h3>${escapeXml(section.subtitulo)}</h3><p>${escapeXml(section.contenido)}</p>`).join("")}<h3>${escapeXml(labels.conclusion)}</h3><p>${escapeXml(chapter.conclusion || "")}</p><h3>${escapeXml(labels.exercise)}</h3><p>${escapeXml(chapter.ejercicio || "")}</p></article>`).join("")}
+          <article><h2>${escapeXml(labels.conclusion)}</h2><p>${escapeXml(book.conclusion_final || "")}</p><h2>${escapeXml(labels.authorAbout)}</h2><p>${escapeXml(book.sobre_el_autor || "")}</p></article>
+          <script>window.addEventListener("load", () => setTimeout(() => window.print(), 250));<\/script>
+        </body>
+      </html>`);
+    printable.document.close();
+  }
+
+  function isArabicLanguage(language) {
+    return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
+  }
+
+  function localizedLabels(language) {
+    if (isArabicLanguage(language)) {
+      return {
+        chapter: "الفصل",
+        conclusion: "الخاتمة",
+        exercise: "تمرين عملي",
+        toc: "الفهرس",
+        resources: "موارد إضافية",
+        editorialInfo: "معلومات النشر",
+        destination: "الوجهة",
+        language: "اللغة",
+        category: "التصنيف التحريري",
+        estimatedPages: "عدد الصفحات التقديري",
+        description: "الوصف التحريري",
+        authorAbout: "نبذة عن المؤلف"
+      };
+    }
+    return {
+      chapter: "Capítulo",
+      conclusion: "Conclusión",
+      exercise: "Ejercicio práctico",
+      toc: "Índice",
+      resources: "Recursos extra",
+      editorialInfo: "Información editorial",
+      destination: "Destino",
+      language: "Idioma",
+      category: "Categoría editorial",
+      estimatedPages: "Páginas estimadas",
+      description: "Descripción editorial",
+      authorAbout: "Sobre el autor"
+    };
+  }
+
   function hexToRgb(hex = "#ffffff") {
     const clean = String(hex).replace("#", "").trim();
     const value = clean.length === 3 ? clean.split("").map((char) => char + char).join("") : clean.padEnd(6, "f").slice(0, 6);
@@ -258,8 +342,9 @@
     zip.folder("META-INF").file("container.xml", `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
     const oebps = zip.folder("OEBPS");
     oebps.file("content.opf", `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">${id}</dc:identifier><dc:title>${escapeXml(book.titulo)}</dc:title><dc:language>${escapeXml(book.idioma || "es")}</dc:language><dc:creator>${escapeXml(book.autor || "")}</dc:creator></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="chapters" href="chapters.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapters"/></spine></package>`);
-    oebps.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><body><nav epub:type="toc"><ol><li><a href="chapters.xhtml">${escapeXml(book.titulo)}</a></li></ol></nav></body></html>`);
-    oebps.file("chapters.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${escapeXml(book.titulo)}</title></head><body><h1>${escapeXml(book.titulo)}</h1>${allChapterText(book)}</body></html>`);
+    const dir = isArabicLanguage(book.idioma) ? "rtl" : "ltr";
+    oebps.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}"><body><nav epub:type="toc"><ol><li><a href="chapters.xhtml">${escapeXml(book.titulo)}</a></li></ol></nav></body></html>`);
+    oebps.file("chapters.xhtml", `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" dir="${dir}"><head><title>${escapeXml(book.titulo)}</title><style>body{direction:${dir};text-align:${dir === "rtl" ? "right" : "left"};line-height:1.7;}</style></head><body><h1>${escapeXml(book.titulo)}</h1>${allChapterText(book)}</body></html>`);
     const blob = await zip.generateAsync({ type: "blob", mimeType: "application/epub+zip", compression: "DEFLATE" });
     downloadBlob(blob, `${slug(book.titulo)}.epub`);
   }
@@ -270,22 +355,24 @@
     zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
     zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
     const word = zip.folder("word");
+    const labels = localizedLabels(book.idioma);
+    const rtl = isArabicLanguage(book.idioma);
     const paragraphs = [
       book.titulo,
       book.subtitulo || "",
       book.autor || "",
-      `Descripción editorial: ${book.descripcion_editorial || book.descripcion_kdp || ""}`,
+      `${labels.description}: ${book.descripcion_editorial || book.descripcion_kdp || ""}`,
       ...(book.contenido || []).flatMap((chapter) => [
-        `Capítulo ${chapter.capitulo}: ${chapter.titulo}`,
+        `${labels.chapter} ${chapter.capitulo}: ${chapter.titulo}`,
         chapter.introduccion,
         ...(chapter.secciones || []).flatMap((section) => [section.subtitulo, section.contenido]),
         chapter.conclusion,
-        `Ejercicio: ${chapter.ejercicio || ""}`
+        `${labels.exercise}: ${chapter.ejercicio || ""}`
       ]),
       book.conclusion_final || "",
       book.sobre_el_autor || ""
     ].filter(Boolean);
-    word.file("document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs.map((item) => `<w:p><w:r><w:t xml:space="preserve">${escapeXml(item)}</w:t></w:r></w:p>`).join("")}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1200" w:bottom="1440" w:left="1200"/></w:sectPr></w:body></w:document>`);
+    word.file("document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs.map((item) => `<w:p><w:pPr>${rtl ? "<w:bidi/>" : ""}</w:pPr><w:r><w:t xml:space="preserve">${escapeXml(item)}</w:t></w:r></w:p>`).join("")}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1200" w:bottom="1440" w:left="1200"/></w:sectPr></w:body></w:document>`);
     const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", compression: "DEFLATE" });
     downloadBlob(blob, `${slug(book.titulo)}.docx`);
   }

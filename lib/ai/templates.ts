@@ -33,7 +33,7 @@ export const contentTypes: { key: TemplateKey; label: string; prompt: string }[]
 
 export const tones = ["Professional", "Friendly", "Bold", "Luxury", "Witty", "Empathetic", "Urgent", "Educational"];
 export const platforms = ["General", "Facebook", "Instagram", "TikTok", "YouTube", "Etsy", "Email", "Landing Page", "Canva"];
-export const languages = ["English", "Spanish", "French", "German", "Portuguese", "Italian"];
+export const languages = ["English", "Spanish", "Arabic", "French", "German", "Portuguese", "Italian", "Dutch", "Turkish"];
 export const outputFormats = ["Complete ebook", "Structured sections", "Bullet list", "Table", "Short copy", "Long-form copy", "Script"];
 
 export function buildPrompt(input: {
@@ -50,6 +50,12 @@ export function buildPrompt(input: {
   details?: string;
 }) {
   if (input.contentType === "professional_ebook" || input.templateLabel === "Professional Ebook") {
+    const isArabic = /arabic|árabe|arabe|العربية|عربي/i.test(input.language);
+    const languageRule = isArabic
+      ? "Write the entire ebook in Modern Standard Arabic only. Every heading, chapter title, table of contents item, example, exercise, checklist, conclusion, metadata line and CTA must be Arabic. Use natural RTL-friendly Arabic wording. Do not leave labels such as Chapter, Section, Introduction or Conclusion in Spanish or English."
+      : `Write the entire ebook in ${input.language}. Every heading, chapter title, example, exercise, checklist, conclusion and CTA must stay in ${input.language}. Do not mix languages except unavoidable proper nouns.`;
+    const chapterLabel = isArabic ? "الفصل" : "Chapter";
+    const sectionLabel = isArabic ? "القسم" : "Section";
     return `You are IvoMarket AI, a premium ebook strategist, ghostwriter and digital product creator.
 
 Your job is to create a professional ebook that a customer could receive after purchase.
@@ -71,6 +77,9 @@ ${input.details || "No extra brief provided. Make smart assumptions and keep the
 
 Create a complete, polished ebook in ${input.language}. Do not generate a short outline. Do not generate ad copy. Do not explain what you are going to do. Write the ebook itself.
 
+Language rule:
+${languageRule}
+
 Required ebook structure:
 1. Premium title
 2. Professional subtitle
@@ -87,6 +96,7 @@ Required ebook structure:
 13. Final call to action
 
 Writing rules:
+- Use localized labels for the selected language. For this request, chapter label should be "${chapterLabel}" and section label should be "${sectionLabel}".
 - Make it specific, useful and concrete.
 - Avoid generic motivational filler.
 - Use clear headings and subheadings.

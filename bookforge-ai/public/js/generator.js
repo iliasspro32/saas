@@ -337,9 +337,10 @@ async function callAnthropic(config, prompt) {
 function buildApiPrompt(payload) {
   const pages = Number(payload.pages || 100);
   const chapters = Math.max(1, Number(payload.capitulos || 10));
-  const words = Math.max(9000, pages * 420);
-  const wordsPerChapter = Math.max(1000, Math.ceil(words / chapters));
+  const words = targetWordsForPages(pages);
+  const wordsPerChapter = Math.max(450, Math.ceil(words / chapters));
   const languageRule = languageInstruction(payload.idioma);
+  const labels = localizedLabels(payload.idioma);
   return `Crea un ebook profesional completo, humano y universal, revisado como editor, listo para publicar y exportar en PDF.
 Título: ${payload.titulo}
 Autor: ${payload.autor || "BookForge AI Studio"}
@@ -357,9 +358,11 @@ Portada: ${payload.coverMood || "portada comercial premium"}
 
 Reglas obligatorias:
 - ${languageRule}
+- Todos los campos del JSON deben estar escritos en ${payload.idioma}: título, subtítulo, descripción, keywords, categoría, portada, índice, capítulos, secciones, conclusiones, ejercicios, recursos, sobre el autor y control de calidad.
+- Usa estas etiquetas localizadas cuando necesites nombrar partes: capítulo="${labels.chapter}", sección="${labels.section}", introducción="${labels.introduction}", conclusión="${labels.conclusion}", ejercicio="${labels.exercise}", índice="${labels.toc}", recursos="${labels.resources}".
 - No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o PDF descargable.
 - Escribe como humano experto: frases variadas, ejemplos concretos, criterio editorial, transiciones naturales y cero relleno.
-- Si el nicho es desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, incluye Capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Si el nicho es desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, incluye un capítulo 0 de avisos importantes escrito en ${payload.idioma}.
 - Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
 - Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
 - No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
@@ -391,7 +394,7 @@ Devuelve SOLO JSON válido con estas claves:
     "texto_contraportada": "string"
   },
   "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
-  "contenido": [{"capitulo": 0, "titulo": "string", "introduccion": "300+ palabras", "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "300 a 450 palabras"}], "conclusion": "250+ palabras", "ejercicio": "string"}],
+  "contenido": [{"capitulo": 0, "titulo": "string en ${payload.idioma}", "introduccion": "250+ palabras en ${payload.idioma}", "secciones": [{"subtitulo": "string en ${payload.idioma}", "contenido": "250 a 450 palabras en ${payload.idioma}"}], "conclusion": "180+ palabras en ${payload.idioma}", "ejercicio": "string en ${payload.idioma}"}],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
   "conclusion_final": "600+ palabras",
   "sobre_el_autor": "string",
@@ -464,60 +467,62 @@ function renderCover(book) {
 }
 
 function renderManuscript(book) {
+  const rtl = isArabicLanguage(book.idioma);
+  const labels = localizedLabels(book.idioma);
   const chapters = (book.contenido || []).map((chapter) => `
-    <section class="book-page chapter">
-      <span class="chapter-kicker">Capítulo ${chapter.capitulo}</span>
+    <section class="book-page chapter" dir="${rtl ? "rtl" : "ltr"}" style="text-align:${rtl ? "right" : "left"}">
+      <span class="chapter-kicker">${escapeHtml(labels.chapter)} ${chapter.capitulo}</span>
       <h2>${escapeHtml(chapter.titulo)}</h2>
       <p class="chapter-intro">${formatText(chapter.introduccion)}</p>
       ${(chapter.secciones || []).map((section) => `
         <h3>${escapeHtml(section.subtitulo)}</h3>
         <p>${formatText(section.contenido)}</p>
       `).join("")}
-      <h3>Conclusión del capítulo</h3>
+      <h3>${escapeHtml(labels.conclusion)}</h3>
       <p>${formatText(chapter.conclusion)}</p>
-      <div class="exercise-box"><strong>Ejercicio práctico</strong><p>${formatText(chapter.ejercicio)}</p></div>
+      <div class="exercise-box"><strong>${escapeHtml(labels.exercise)}</strong><p>${formatText(chapter.ejercicio)}</p></div>
     </section>
   `).join("");
 
   const html = `
-    <div class="paper" id="bookPaper">
-      <section class="book-page title-page">
+    <div class="paper" id="bookPaper" dir="${rtl ? "rtl" : "ltr"}" style="text-align:${rtl ? "right" : "left"}">
+      <section class="book-page title-page" dir="${rtl ? "rtl" : "ltr"}">
         <p class="book-label">${escapeHtml(book.tipo || "Ebook profesional")}</p>
         <h1>${escapeHtml(book.titulo)}</h1>
         <p class="subtitle">${escapeHtml(book.subtitulo || "")}</p>
         <p class="byline">${escapeHtml(book.autor || "")}</p>
       </section>
 
-      <section class="book-page copyright-page">
-        <h2>Información editorial</h2>
+      <section class="book-page copyright-page" dir="${rtl ? "rtl" : "ltr"}">
+        <h2>${escapeHtml(labels.editorialInfo)}</h2>
         <div class="metadata-grid">
-          <div><strong>Destino</strong><span>${escapeHtml(book.plataforma || "Universal")}</span></div>
-          <div><strong>Idioma</strong><span>${escapeHtml(book.idioma || "")}</span></div>
-          <div><strong>Categoría editorial</strong><span>${escapeHtml(book.categoria_editorial || book.categoria_kdp || "")}</span></div>
-          <div><strong>Páginas estimadas</strong><span>${escapeHtml(String(book.paginas_estimadas || ""))}</span></div>
+          <div><strong>${escapeHtml(labels.destination)}</strong><span>${escapeHtml(book.plataforma || "Universal")}</span></div>
+          <div><strong>${escapeHtml(labels.language)}</strong><span>${escapeHtml(book.idioma || "")}</span></div>
+          <div><strong>${escapeHtml(labels.category)}</strong><span>${escapeHtml(book.categoria_editorial || book.categoria_kdp || "")}</span></div>
+          <div><strong>${escapeHtml(labels.estimatedPages)}</strong><span>${escapeHtml(String(book.paginas_estimadas || ""))}</span></div>
         </div>
-        <h3>Descripción editorial</h3>
+        <h3>${escapeHtml(labels.description)}</h3>
         <p>${formatText(book.descripcion_editorial || book.descripcion_kdp)}</p>
         <h3>Keywords</h3>
         <p>${(book.keywords || []).map(escapeHtml).join(", ")}</p>
       </section>
 
-      <section class="book-page toc-page">
-        <h2>Índice</h2>
-        <ol class="toc-list">${(book.indice || []).map((item) => `<li><span>Capítulo ${escapeHtml(String(item.capitulo))}</span><strong>${escapeHtml(item.titulo)}</strong><em>${escapeHtml(item.descripcion || "")}</em></li>`).join("")}</ol>
+      <section class="book-page toc-page" dir="${rtl ? "rtl" : "ltr"}">
+        <h2>${escapeHtml(labels.toc)}</h2>
+        <ol class="toc-list">${(book.indice || []).map((item) => `<li><span>${escapeHtml(labels.chapter)} ${escapeHtml(String(item.capitulo))}</span><strong>${escapeHtml(item.titulo)}</strong><em>${escapeHtml(item.descripcion || "")}</em></li>`).join("")}</ol>
       </section>
 
       ${chapters}
 
       <section class="book-page">
-        <h2>Recursos extra</h2>
+        <h2>${escapeHtml(labels.resources)}</h2>
         ${(book.recursos_extra || []).map((item) => `<h3>${escapeHtml(item.titulo)}</h3><p>${formatText(item.contenido)}</p>`).join("")}
       </section>
 
       <section class="book-page">
-        <h2>Conclusión final</h2>
+        <h2>${escapeHtml(labels.conclusion)}</h2>
         <p>${formatText(book.conclusion_final)}</p>
-        <h2>Sobre el autor</h2>
+        <h2>${escapeHtml(labels.authorAbout)}</h2>
         <p>${formatText(book.sobre_el_autor)}</p>
       </section>
     </div>
@@ -718,11 +723,53 @@ function isArabicLanguage(language) {
   return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
 }
 
+function targetWordsForPages(pages) {
+  const safePages = Math.max(5, Math.min(500, Number(pages || 5)));
+  return Math.max(2200, safePages * 430);
+}
+
 function languageInstruction(language) {
   if (isArabicLanguage(language)) {
-    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+    return "اكتب كل المحتوى النهائي باللغة العربية الفصحى الحديثة فقط. لا تستخدم الإسبانية أو الإنجليزية أو أي لغة أخرى إلا للأسماء الخاصة الضرورية. يجب أن تكون كل العناوين والفصول والفهارس والخاتمة والتمارين والبيانات الوصفية بالعربية، وبأسلوب طبيعي مناسب لاتجاه RTL.";
   }
   return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
+}
+
+function localizedLabels(language) {
+  if (isArabicLanguage(language)) {
+    return {
+      chapter: "الفصل",
+      section: "القسم",
+      introduction: "المقدمة",
+      conclusion: "الخاتمة",
+      exercise: "تمرين عملي",
+      toc: "الفهرس",
+      resources: "موارد إضافية",
+      editorialInfo: "معلومات النشر",
+      destination: "الوجهة",
+      language: "اللغة",
+      category: "التصنيف التحريري",
+      estimatedPages: "عدد الصفحات التقديري",
+      description: "الوصف التحريري",
+      authorAbout: "نبذة عن المؤلف"
+    };
+  }
+  return {
+    chapter: "Capítulo",
+    section: "Sección",
+    introduction: "Introducción",
+    conclusion: "Conclusión",
+    exercise: "Ejercicio práctico",
+    toc: "Índice",
+    resources: "Recursos extra",
+    editorialInfo: "Información editorial",
+    destination: "Destino",
+    language: "Idioma",
+    category: "Categoría editorial",
+    estimatedPages: "Páginas estimadas",
+    description: "Descripción editorial",
+    authorAbout: "Sobre el autor"
+  };
 }
 
 function escapeHtml(value = "") {

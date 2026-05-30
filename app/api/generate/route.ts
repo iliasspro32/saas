@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const provider = getProvider("openrouter");
 
     const started = Date.now();
-    const maxTokens = template.key === "professional_ebook" ? 12000 : 2200;
+    const maxTokens = template.key === "professional_ebook" ? 18000 : 2200;
     const ebookFallbackModels = [
       "anthropic/claude-sonnet-4",
       "openai/gpt-4.1",

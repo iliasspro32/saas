@@ -61,10 +61,11 @@ async function generateStudioBook(input, env) {
   await ensureAiConfigured(env);
   const clean = validateStudioInput(input);
   const chaptersCount = clean.chaptersCount;
-  const targetWords = Math.max(9000, clean.targetPages * 420);
-  const wordsPerChapter = Math.max(1000, Math.ceil(targetWords / chaptersCount));
+  const targetWords = targetWordsForPages(clean.targetPages);
+  const wordsPerChapter = Math.max(450, Math.ceil(targetWords / chaptersCount));
   const sectionsPerChapter = Math.max(3, Math.min(5, Math.ceil(wordsPerChapter / 900)));
   const languageRule = languageInstruction(clean.language);
+  const labels = localizedLabels(clean.language);
   const prompt = `Crea un ebook profesional completo en JSON válido.
 Tema: ${clean.topic}
 Género: ${clean.genre}
@@ -81,10 +82,12 @@ Cada capítulo debe incluir ${sectionsPerChapter} a 5 secciones internas desarro
 
 Reglas:
 - ${languageRule}
+- Todos los títulos, subtítulos, índice, introducción, capítulos, secciones, conclusión, ejercicios, metadata y portada deben estar en ${clean.language}. No dejes etiquetas en español si el idioma elegido no es español.
+- Usa estas etiquetas localizadas cuando necesites nombrar partes: capítulo="${labels.chapter}", sección="${labels.section}", introducción="${labels.introduction}", conclusión="${labels.conclusion}", ejercicio="${labels.exercise}", índice="${labels.toc}", recursos="${labels.resources}".
 - No escribas para KDP, Etsy ni una plataforma concreta. El contenido debe ser válido para vender o entregar en cualquier plataforma, web propia, newsletter, academia, marketplace o PDF descargable.
 - Capítulos ordenados, coherentes, largos y sin relleno, con voz humana, ejemplos concretos y matices propios de un experto.
-- Incluye un capítulo 0 de "Términos y avisos importantes" con mínimo 600 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
-- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content": "Sección 1.1: ...", "Sección 1.2: ...".
+- Incluye un capítulo 0 de avisos importantes, escrito en ${clean.language}, con mínimo 500 palabras cuando el tema lo requiera por salud, finanzas, espiritualidad, desarrollo personal, legal, educación o bienestar.
+- Cada capítulo debe dividirse en secciones naturales usando encabezados claros dentro de "content" en ${clean.language}.
 - Cada sección debe tener entre 300 y 450 palabras o 10 a 15 párrafos breves. No entregues secciones de 2 o 3 párrafos.
 - Usa enumeraciones y viñetas cuando aporten claridad. No uses emojis ni líneas decorativas.
 - Agrega secciones interactivas donde corresponda: ejercicios, preguntas de reflexión, checklists, plantillas o acciones guiadas.
@@ -121,8 +124,9 @@ Devuelve exactamente:
 }
 
 async function expandShortStudioBook(env, book, input) {
-  const targetPerChapter = Math.min(1100, Math.max(650, Math.ceil(input.targetPages * 220 / Math.max(1, input.chaptersCount))));
+  const targetPerChapter = Math.max(450, Math.ceil(targetWordsForPages(input.targetPages) / Math.max(1, input.chaptersCount)));
   const languageRule = languageInstruction(input.language);
+  const labels = localizedLabels(input.language);
   const chapters = await Promise.all(book.chapters.map(async (chapter) => {
     if (wordCount(chapter.content) >= targetPerChapter) return chapter;
     const prompt = `Reescribe y amplía este capítulo para un ebook profesional.
@@ -138,6 +142,7 @@ ${chapter.content}
 
 Reglas obligatorias:
 - ${languageRule}
+- Todo el texto devuelto debe estar en ${input.language}, incluyendo subtítulos y etiquetas. Usa "${labels.section}" para secciones, "${labels.conclusion}" para conclusiones y "${labels.exercise}" para ejercicios.
 - Escribe mínimo ${targetPerChapter} palabras.
 - Divide el capítulo con subtítulos claros.
 - Incluye explicación, ejemplos concretos, errores a evitar, pasos prácticos y un ejercicio final.
@@ -180,15 +185,57 @@ function wordCount(value) {
   return String(value || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
+function targetWordsForPages(pages) {
+  const safePages = Math.max(5, Math.min(500, Number(pages || 5)));
+  return Math.max(2200, safePages * 430);
+}
+
 function isArabicLanguage(language) {
   return /árabe|arabe|arabic|العربية|عربي/i.test(String(language || ""));
 }
 
 function languageInstruction(language) {
   if (isArabicLanguage(language)) {
-    return "Escribe absolutamente todo el contenido final en árabe estándar moderno. No uses español, inglés ni Spanglish salvo nombres propios inevitables. Mantén dirección RTL y estilo natural para lectores árabes.";
+    return "اكتب كل المحتوى النهائي باللغة العربية الفصحى الحديثة فقط. لا تستخدم الإسبانية أو الإنجليزية أو أي لغة أخرى إلا للأسماء الخاصة الضرورية. يجب أن تكون كل العناوين والفصول والفهارس والخاتمة والتمارين والبيانات الوصفية بالعربية، وبأسلوب طبيعي مناسب لاتجاه RTL.";
   }
   return `Escribe absolutamente todo el contenido final en ${language}. No mezcles idiomas salvo nombres propios inevitables.`;
+}
+
+function localizedLabels(language) {
+  if (isArabicLanguage(language)) {
+    return {
+      chapter: "الفصل",
+      section: "القسم",
+      introduction: "المقدمة",
+      conclusion: "الخاتمة",
+      exercise: "تمرين عملي",
+      toc: "الفهرس",
+      resources: "موارد إضافية",
+      editorialInfo: "معلومات النشر",
+      destination: "الوجهة",
+      language: "اللغة",
+      category: "التصنيف التحريري",
+      estimatedPages: "عدد الصفحات التقديري",
+      description: "الوصف التحريري",
+      authorAbout: "نبذة عن المؤلف"
+    };
+  }
+  return {
+    chapter: "Capítulo",
+    section: "Sección",
+    introduction: "Introducción",
+    conclusion: "Conclusión",
+    exercise: "Ejercicio práctico",
+    toc: "Índice",
+    resources: "Recursos extra",
+    editorialInfo: "Información editorial",
+    destination: "Destino",
+    language: "Idioma",
+    category: "Categoría editorial",
+    estimatedPages: "Páginas estimadas",
+    description: "Descripción editorial",
+    authorAbout: "Sobre el autor"
+  };
 }
 
 function validateStudioInput(input) {
@@ -197,7 +244,7 @@ function validateStudioInput(input) {
   }
 
   const chaptersCount = Math.max(1, Math.min(80, Number(input.chaptersCount || 4)));
-  const targetPages = Math.max(10, Math.min(500, Number(input.targetPages || 20)));
+  const targetPages = Math.max(5, Math.min(500, Number(input.targetPages || 20)));
   const language = String(input.language || "Español").slice(0, 80);
 
   return {
@@ -214,10 +261,11 @@ function validateStudioInput(input) {
 }
 
 function normalizeStudioBook(book, input, id) {
+  const labels = localizedLabels(input.language);
   const rawChapters = Array.isArray(book.chapters) ? book.chapters : [];
   const chapters = rawChapters.map((chapter, index) => ({
     number: Number(chapter.number || index + 1),
-    title: String(chapter.title || `Capítulo ${index + 1}`).trim(),
+    title: String(chapter.title || `${labels.chapter} ${index + 1}`).trim(),
     content: String(chapter.content || "").trim()
   })).filter((chapter) => chapter.content);
 
@@ -234,7 +282,7 @@ function normalizeStudioBook(book, input, id) {
     introduction: String(book.introduction || "").trim(),
     tableOfContents: Array.isArray(book.tableOfContents) && book.tableOfContents.length
       ? book.tableOfContents.map((item) => String(item))
-      : chapters.map((chapter) => `Capítulo ${chapter.number}: ${chapter.title}`),
+      : chapters.map((chapter) => `${labels.chapter} ${chapter.number}: ${chapter.title}`),
     chapters,
     conclusion: String(book.conclusion || "").trim(),
     id,
@@ -323,7 +371,7 @@ function validateInput(input) {
   const chapters = Number(input.capitulos);
   const pages = Number(input.pages);
   if (![5, 10, 15, 20, 30, 40].includes(chapters)) throw new Error("Invalid chapter count");
-  if (![50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
+  if (![5, 10, 15, 20, 30, 40, 50, 100, 150, 200, 250, 300].includes(pages)) throw new Error("Invalid page target");
   return {
     titulo: String(input.titulo).slice(0, 140),
     tema: String(input.tema).slice(0, 3000),
@@ -340,8 +388,9 @@ function validateInput(input) {
 }
 
 function buildPrompt(data) {
-  const words = Math.max(16000, data.pages * 450);
-  const wordsPerChapter = Math.max(1200, Math.ceil(words / data.capitulos));
+  const words = targetWordsForPages(data.pages);
+  const wordsPerChapter = Math.max(450, Math.ceil(words / data.capitulos));
+  const labels = localizedLabels(data.idioma);
   return `Crea un ebook profesional completo, humano y universal:
 - Título: ${data.titulo}
 - Autor: ${data.autor}
@@ -359,9 +408,12 @@ function buildPrompt(data) {
 - Portada: incluye concepto visual completo, título, subtítulo, autor, paleta, composición y prompt para generar imagen
 
 Reglas editoriales obligatorias:
+- ${languageInstruction(data.idioma)}
+- Todos los campos del JSON deben estar escritos en ${data.idioma}: título, subtítulo, descripción, keywords, categoría, portada, índice, capítulos, secciones, conclusiones, ejercicios, recursos, sobre el autor y control de calidad.
+- Usa estas etiquetas localizadas cuando necesites nombrar partes: capítulo="${labels.chapter}", sección="${labels.section}", introducción="${labels.introduction}", conclusión="${labels.conclusion}", ejercicio="${labels.exercise}", índice="${labels.toc}", recursos="${labels.resources}".
 - No escribas para KDP, Etsy ni una plataforma concreta. El libro debe servir para cualquier tienda, web propia, academia, comunidad, lead magnet premium o descarga PDF.
 - Escribe con voz humana: frases variadas, ejemplos realistas, criterio experto, transición natural entre ideas y cero relleno.
-- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea el capítulo 0: "Términos y avisos importantes" con mínimo 600 palabras.
+- Si el nicho toca desarrollo personal, espiritualidad, salud, finanzas, educación, legal, bienestar u otro tema sensible, crea un capítulo 0 de avisos importantes en ${data.idioma} con mínimo 500 palabras.
 - Desarrolla capítulo a capítulo y sección por sección. Cada sección debe tener hasta 400 palabras o 10 a 15 párrafos breves.
 - Cada capítulo debe incluir mínimo 3 secciones desarrolladas, más introducción, conclusión y ejercicio.
 - No entregues capítulos vacíos, genéricos o de pocos párrafos. Cada sección debe contener explicación, ejemplo y aplicación práctica.
@@ -392,15 +444,15 @@ Devuelve SOLO este JSON:
     "prompt_imagen": "prompt detallado para generar la imagen de portada sin texto incrustado",
     "texto_contraportada": "texto comercial de contraportada"
   },
-  "indice": [{"capitulo": 0, "titulo": "string", "descripcion": "string"}],
+  "indice": [{"capitulo": 0, "titulo": "string en ${data.idioma}", "descripcion": "string en ${data.idioma}"}],
   "contenido": [
     {
       "capitulo": 0,
-      "titulo": "string",
-      "introduccion": "string de 300+ palabras",
-      "secciones": [{"subtitulo": "Sección 0.1: string", "contenido": "string de hasta 400 palabras, con párrafos humanos y viñetas si corresponde"}],
-      "conclusion": "string de 250+ palabras",
-      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica"
+      "titulo": "string en ${data.idioma}",
+      "introduccion": "string de 250+ palabras en ${data.idioma}",
+      "secciones": [{"subtitulo": "string en ${data.idioma}", "contenido": "string de 250 a 450 palabras en ${data.idioma}, con párrafos humanos y viñetas si corresponde"}],
+      "conclusion": "string de 180+ palabras en ${data.idioma}",
+      "ejercicio": "actividad, reflexión, checklist, plantilla o tarea práctica en ${data.idioma}"
     }
   ],
   "recursos_extra": [{"titulo": "string", "contenido": "string"}],
