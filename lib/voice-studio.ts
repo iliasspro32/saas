@@ -182,7 +182,7 @@ export async function cloneVoice(input: { audioData?: string; mimeType?: string;
   if (!input.voiceName) throw new Error("Por favor, asigna un nombre para la voz clonada");
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
+    model: "gemini-2.5-flash",
     contents: [
       { inlineData: { data: cleanBase64(input.audioData), mimeType: normalizeMimeType(input.mimeType) } },
       `Analiza esta muestra de voz y devuelve solo JSON valido con gender, suggestedBaseVoice, descriptor, speechGuide y pitchShift. Usa gender masculino, femenino o neutro. Usa suggestedBaseVoice Kore, Puck, Charon, Fenrir o Zephyr. Responde en espanol.`,
@@ -230,7 +230,7 @@ export async function convertVoice(input: {
         ? `Transcribe y traduce el audio al idioma ${input.translationLanguage}. Devuelve solo el texto final.`
         : "Transcribe el audio exactamente palabra por palabra. Devuelve solo el texto transcrito.";
     const transcribeResponse = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: [{ inlineData: { data: cleanBase64(input.audioData), mimeType: normalizeMimeType(input.mimeType) } }, prompt],
     });
     transcription = transcribeResponse.text?.trim() || "";
@@ -251,7 +251,7 @@ export async function convertVoice(input: {
   const synthesisText = `Haz una narracion vocal. ${emotionMap[input.emotionModifier || ""] || ""} ${speedText}${styleText}. Lee: "${transcription}"`;
 
   const ttsResponse = await ai.models.generateContent({
-    model: "gemini-3.1-flash-tts-preview",
+    model: "gemini-2.5-flash-preview-tts",
     contents: [{ parts: [{ text: synthesisText }] }],
     config: {
       responseModalities: [Modality.AUDIO],

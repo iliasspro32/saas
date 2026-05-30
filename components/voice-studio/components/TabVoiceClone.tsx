@@ -416,7 +416,7 @@ export default function TabVoiceClone({ onVoiceCloned }: TabVoiceCloneProps) {
                 Clonación Realizada con Éxito
               </h3>
               <p className="font-sans text-xs text-white/60">
-                La firma de voz de <b>&quot;{clonedProfile.name}&quot;</b> ha sido guardada en la base de datos de tu espacio.
+                La firma vocal aproximada de <b>&quot;{clonedProfile.name}&quot;</b> ha sido guardada en la biblioteca de tu espacio.
               </p>
             </div>
 

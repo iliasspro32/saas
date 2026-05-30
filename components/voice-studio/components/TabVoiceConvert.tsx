@@ -578,7 +578,7 @@ export default function TabVoiceConvert({
           };
           onAddHistoryItem(hist);
           
-          setSuccessMessage(`¡Voz cambiada exitosamente para sonar idéntica a: ${selectedVoice.name}!`);
+          setSuccessMessage(`¡Voz cambiada con la firma vocal aproximada de: ${selectedVoice.name}!`);
         } catch (err: any) {
           console.error(err);
           setErrorMessage(err.message || "Fallo inesperado al conectar con el servidor.");
