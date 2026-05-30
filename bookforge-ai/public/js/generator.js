@@ -474,7 +474,7 @@ function renderCover(book) {
 
 function renderManuscript(book) {
   const rtl = isArabicBook(book);
-  const labels = localizedLabels(book.idioma);
+  const labels = localizedLabels(rtl ? "Árabe" : book.idioma);
   const chapters = (book.contenido || []).map((chapter) => `
     <section class="book-page chapter" dir="${rtl ? "rtl" : "ltr"}" style="text-align:${rtl ? "right" : "left"}">
       <span class="chapter-kicker">${escapeHtml(labels.chapter)} ${chapter.capitulo}</span>

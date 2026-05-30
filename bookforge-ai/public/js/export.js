@@ -8,7 +8,7 @@
   }
 
   function allChapterText(book) {
-    const labels = localizedLabels(book.idioma);
+    const labels = localizedLabels(isArabicBook(book) ? "Árabe" : book.idioma);
     return (book.contenido || []).map((chapter) => {
       const sections = (chapter.secciones || []).map((section) => `<h2>${section.subtitulo}</h2><p>${section.contenido}</p>`).join("");
       return `<h1>${labels.chapter} ${chapter.capitulo}: ${chapter.titulo}</h1><p>${chapter.introduccion}</p>${sections}<h2>${labels.conclusion}</h2><p>${chapter.conclusion}</p><h2>${labels.exercise}</h2><p>${chapter.ejercicio}</p>`;
@@ -33,7 +33,7 @@
 
   function buildBookPdf(doc, book, settings) {
     settings.rtl = isArabicBook(book);
-    settings.labels = localizedLabels(book.idioma);
+    settings.labels = localizedLabels(settings.rtl ? "Árabe" : book.idioma);
     const page = { n: 0 };
     const cover = book.portada || {};
     const colors = cover.paleta?.length ? cover.paleta : ["#111827", "#4f46e5", "#f59e0b"];
@@ -256,7 +256,7 @@
   }
 
   function printArabicBook(book) {
-    const labels = localizedLabels(book.idioma);
+    const labels = localizedLabels(isArabicBook(book) ? "Árabe" : book.idioma);
     const printable = window.open("", "_blank");
     if (!printable) return alert("Permite ventanas emergentes para abrir la vista PDF en árabe.");
     printable.document.write(`<!doctype html>
@@ -359,7 +359,7 @@
     zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
     zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
     const word = zip.folder("word");
-    const labels = localizedLabels(book.idioma);
+    const labels = localizedLabels(isArabicBook(book) ? "Árabe" : book.idioma);
     const rtl = isArabicBook(book);
     const paragraphs = [
       book.titulo,
