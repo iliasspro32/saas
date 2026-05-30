@@ -4,7 +4,12 @@ const baseVoices = [
   { id: "Puck", name: "Puck", description: "Tono dinámico y cercano" },
   { id: "Charon", name: "Charon", description: "Voz cálida y conversacional" },
   { id: "Fenrir", name: "Fenrir", description: "Dicción clara y analítica" },
-  { id: "Zephyr", name: "Zephyr", description: "Voz neutra y equilibrada" }
+  { id: "Zephyr", name: "Zephyr", description: "Voz neutra y equilibrada" },
+  { id: "Yassine", name: "Yassine marroquí", description: "Voz masculina cálida con estilo darija marroquí", guide: "Entonación masculina marroquí natural, cálida y conversacional. Pronunciación magrebí fluida para darija." },
+  { id: "Ibrahim", name: "Ibrahim árabe clásico", description: "Voz masculina árabe formal y profunda", guide: "Pronunciación árabe clara, resonante y formal, con dicción cuidada." },
+  { id: "Omar", name: "Omar árabe", description: "Voz masculina árabe natural y cercana", guide: "Tono masculino árabe natural, cercano, fluido y expresivo." },
+  { id: "Malika", name: "Malika marroquí", description: "Voz femenina marroquí elegante", guide: "Voz femenina marroquí con dicción clara, ritmo natural y pronunciación magrebí fluida." },
+  { id: "Yasmin", name: "Yasmin magrebí", description: "Voz femenina juvenil del Magreb", guide: "Voz femenina juvenil, alegre y dinámica, con entonación magrebí natural." }
 ];
 let landingHtml = "";
 let customVoices = JSON.parse(localStorage.getItem("bookforge_custom_voices") || "[]");
@@ -159,7 +164,7 @@ function toggleLandingView() {
 function renderVoices() {
   const select = document.getElementById("voiceSelect");
   const voiceOptions = [
-    ...baseVoices.map((voice) => `<option value="${voice.id}">${voice.name} · ${voice.description}</option>`),
+    ...baseVoices.map((voice) => `<option value="${voice.id}" data-guide="${escapeHtml(voice.guide || "")}">${voice.name} · ${voice.description}</option>`),
     ...customVoices.map((voice) => `<option value="${voice.baseVoice}" data-guide="${escapeHtml(voice.speechGuide)}">${escapeHtml(voice.name)} · firma personalizada</option>`)
   ].join("");
   select.innerHTML = voiceOptions;

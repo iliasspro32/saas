@@ -9,7 +9,12 @@ const voices = [
   { id: "Puck", name: "Puck", description: "Tono dinámico y cercano" },
   { id: "Charon", name: "Charon", description: "Voz cálida y conversacional" },
   { id: "Fenrir", name: "Fenrir", description: "Dicción clara y analítica" },
-  { id: "Zephyr", name: "Zephyr", description: "Voz neutra y equilibrada" }
+  { id: "Zephyr", name: "Zephyr", description: "Voz neutra y equilibrada" },
+  { id: "Yassine", name: "Yassine marroquí", baseVoice: "Charon", description: "Voz masculina cálida con estilo darija marroquí", guide: "Habla con una entonación masculina marroquí natural, cálida y conversacional. Si el texto está en darija, pronúncialo con fluidez magrebí." },
+  { id: "Ibrahim", name: "Ibrahim árabe clásico", baseVoice: "Kore", description: "Voz masculina árabe formal y profunda", guide: "Habla en árabe con pronunciación clara, resonante y formal. Mantén una dicción cuidada de árabe estándar moderno." },
+  { id: "Omar", name: "Omar árabe", baseVoice: "Charon", description: "Voz masculina árabe natural y cercana", guide: "Habla en árabe con un tono masculino natural, cercano y fluido. Usa una pronunciación clara y expresiva." },
+  { id: "Malika", name: "Malika marroquí", baseVoice: "Fenrir", description: "Voz femenina marroquí elegante", guide: "Habla con voz femenina marroquí, dicción clara, entonación cálida y un ritmo natural. Si el texto está en darija, usa una pronunciación magrebí fluida." },
+  { id: "Yasmin", name: "Yasmin magrebí", baseVoice: "Puck", description: "Voz femenina juvenil del Magreb", guide: "Habla con voz femenina juvenil, alegre y dinámica, con una entonación magrebí natural." }
 ];
 
 export default {
@@ -69,9 +74,9 @@ async function convertVoice(request, env) {
   const body = await readJson(request);
   const mediaData = String(body.mediaData || "");
   const mimeType = clean(body.mimeType || "audio/wav", 80);
-  const voiceName = voices.some((voice) => voice.id === body.voiceName) ? body.voiceName : "Zephyr";
+  const voice = resolveVoice(body.voiceName);
   const language = clean(body.language || "same", 60);
-  const guide = clean(body.speechGuide || "", 500);
+  const guide = mergeGuides(voice.guide, body.speechGuide);
   if (!mediaData) throw httpError("Sube un archivo de audio o vídeo con tu voz.", 400);
   if (mediaData.length > 13_500_000) throw httpError("El archivo es demasiado grande. Usa un audio o vídeo corto de menos de 10 MB.", 413);
   const apiKey = requireGemini(env);
@@ -94,16 +99,16 @@ async function convertVoice(request, env) {
   if (!transcriptionResponse.ok) throw httpError(transcriptionData.error?.message || "Gemini no pudo procesar el archivo.", transcriptionResponse.status);
   const transcription = clean(transcriptionData.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "", 2600);
   if (!transcription) throw httpError("No se pudo detectar una voz clara en el archivo.", 422);
-  return await createVoiceAudio(env, { text: transcription, voiceName, guide, transcription });
+  return await createVoiceAudio(env, { text: transcription, voiceName: voice.baseVoice || voice.id, guide, transcription });
 }
 
 async function synthesizeVoice(request, env) {
   const body = await readJson(request);
   const text = clean(body.text, 1800);
-  const voiceName = voices.some((voice) => voice.id === body.voiceName) ? body.voiceName : "Zephyr";
-  const guide = clean(body.speechGuide || "", 500);
+  const voice = resolveVoice(body.voiceName);
+  const guide = mergeGuides(voice.guide, body.speechGuide);
   if (!text) throw httpError("Escribe el texto que quieres convertir en voz.", 400);
-  return await createVoiceAudio(env, { text, voiceName, guide, transcription: text });
+  return await createVoiceAudio(env, { text, voiceName: voice.baseVoice || voice.id, guide, transcription: text });
 }
 
 async function createVoiceAudio(env, { text, voiceName, guide, transcription }) {
@@ -213,6 +218,14 @@ function cleanHtml(text) {
 function requireGemini(env) {
   if (!env.GEMINI_API_KEY) throw httpError("Falta configurar GEMINI_API_KEY en Cloudflare.", 503);
   return env.GEMINI_API_KEY;
+}
+
+function resolveVoice(id) {
+  return voices.find((voice) => voice.id === id) || voices.find((voice) => voice.id === "Zephyr");
+}
+
+function mergeGuides(presetGuide, customGuide) {
+  return clean([presetGuide, customGuide].filter(Boolean).join(" "), 800);
 }
 
 function pcmToWavBase64(base64, sampleRate = 24000) {
