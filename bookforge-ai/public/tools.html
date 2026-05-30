@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Herramientas IA - BookForge AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/tools.css">
+</head>
+<body class="dashboard-body">
+  <aside class="sidebar">
+    <a class="brand" href="dashboard.html"><span>BF</span> BookForge AI</a>
+    <nav>
+      <a href="dashboard.html">Generador de libros</a>
+      <a class="active" href="tools.html">Herramientas IA</a>
+      <a href="dashboard.html#history">Historial</a>
+      <a href="pricing.html">Planes</a>
+    </nav>
+  </aside>
+  <main class="dashboard-main tools-main">
+    <header class="tools-header">
+      <div>
+        <p class="eyebrow">BookForge AI Tools</p>
+        <h1>Voces y landing pages listas para usar</h1>
+        <p>Genera audio, guarda una firma vocal aproximada y crea una landing HTML completa en cualquier idioma.</p>
+      </div>
+      <a class="back-link" href="dashboard.html">Volver a libros</a>
+    </header>
+
+    <div class="tool-tabs" role="tablist">
+      <button class="active" data-tab="voice">Voces IA</button>
+      <button data-tab="landing">Landing HTML</button>
+    </div>
+
+    <section class="tool-view" id="voiceView">
+      <div class="tool-grid">
+        <form class="tool-card" id="voiceForm">
+          <p class="eyebrow">Generador de voz</p>
+          <h2>Crear audio desde texto</h2>
+          <label>Texto<textarea name="text" rows="8" maxlength="1800" required placeholder="Escribe lo que quieres escuchar..."></textarea></label>
+          <label>Voz<select name="voiceName" id="voiceSelect"></select></label>
+          <label>Guía vocal opcional<input name="speechGuide" id="speechGuide" placeholder="Ej: tono cálido, ritmo pausado"></label>
+          <button class="tool-primary" type="submit">Generar audio</button>
+        </form>
+        <div class="tool-card">
+          <p class="eyebrow">Resultado</p>
+          <h2>Audio generado</h2>
+          <div class="empty-result" id="voiceEmpty">Tu audio aparecerá aquí.</div>
+          <div class="hidden" id="voiceResult">
+            <audio id="voiceAudio" controls></audio>
+            <a class="download-link" id="voiceDownload" download="voz-bookforge.wav">Descargar audio</a>
+          </div>
+        </div>
+      </div>
+      <div class="tool-card clone-card">
+        <p class="eyebrow">Firma vocal aproximada</p>
+        <h2>Analizar una muestra de voz</h2>
+        <p>Sube una grabación breve propia o con permiso. Se analizarán ritmo, tono y estilo para aplicarlos a nuevas voces sintetizadas.</p>
+        <form id="cloneForm" class="clone-form">
+          <label>Nombre de la voz<input name="voiceName" required placeholder="Ej: Narrador cálido"></label>
+          <label>Muestra de audio<input name="audio" type="file" accept="audio/*" required></label>
+          <button class="tool-primary" type="submit">Crear firma vocal</button>
+        </form>
+        <div class="profile-list" id="profileList"></div>
+      </div>
+    </section>
+
+    <section class="tool-view hidden" id="landingView">
+      <div class="tool-grid landing-grid">
+        <form class="tool-card" id="landingForm">
+          <p class="eyebrow">Landing Studio</p>
+          <h2>Crear landing HTML</h2>
+          <label>Nombre del producto<input name="productName" required maxlength="120" placeholder="Ej: Curso Finanzas Claras"></label>
+          <label>Descripción<textarea name="description" required rows="8" maxlength="2400" placeholder="Explica qué vendes, para quién y qué resultado ayuda a conseguir."></textarea></label>
+          <label>Idioma<select name="language"><option>Español</option><option>Inglés</option><option>Árabe</option><option>Francés</option><option>Alemán</option><option>Portugués</option><option>Italiano</option><option>Holandés</option><option>Turco</option></select></label>
+          <button class="tool-primary" type="submit">Generar landing HTML</button>
+        </form>
+        <div class="tool-card landing-output">
+          <div class="output-head">
+            <div><p class="eyebrow">Resultado</p><h2>Landing generada</h2></div>
+            <div class="output-actions">
+              <button type="button" id="previewLanding">Preview</button>
+              <button type="button" id="copyLanding">Copiar</button>
+              <button type="button" id="downloadLanding">Descargar</button>
+            </div>
+          </div>
+          <div class="empty-result" id="landingEmpty">El HTML aparecerá aquí con vista previa y descarga.</div>
+          <iframe class="hidden" id="landingPreview" sandbox="allow-scripts" title="Vista previa de landing page"></iframe>
+          <pre class="hidden" id="landingCode"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div class="toast" id="toast"></div>
+  <script src="js/tools.js" defer></script>
+</body>
+</html>
