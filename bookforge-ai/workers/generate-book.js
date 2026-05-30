@@ -139,18 +139,31 @@ async function expandShortStudioBook(env, book, input) {
   const targetPerChapter = Math.max(450, Math.ceil(targetWordsForPages(input.targetPages) / Math.max(1, input.chaptersCount)));
   const languageRule = languageInstruction(input.language);
   const labels = localizedLabels(input.language);
-  const chapters = await Promise.all(book.chapters.map(async (chapter) => {
-    if (wordCount(chapter.content) >= targetPerChapter) return chapter;
-    const prompt = `Reescribe y amplía este capítulo para un ebook profesional.
+  const chapters = [];
+
+  for (let index = 0; index < input.chaptersCount; index += 1) {
+    const chapterNumber = index + 1;
+    const chapter = book.chapters.find((item) => Number(item.number) === chapterNumber) || book.chapters[index] || {
+      number: chapterNumber,
+      title: `${labels.chapter} ${chapterNumber}`,
+      content: ""
+    };
+    const needsRewrite = wordCount(chapter.content) < targetPerChapter || hasWrongLanguageLabels(chapter, input.language);
+    if (!needsRewrite) {
+      chapters.push({ ...chapter, number: chapterNumber });
+      continue;
+    }
+
+    const prompt = `Escribe o reescribe este capítulo completo para un ebook profesional.
 
 Libro: ${book.title}
 Tema: ${input.topic}
 Audiencia: ${input.audience}
 Tono: ${input.tone}
-Capítulo ${chapter.number}: ${chapter.title}
+${labels.chapter} ${chapterNumber}: ${chapter.title}
 
 Contenido actual:
-${chapter.content}
+${chapter.content || "No existe todavía. Créalo desde cero con profundidad editorial."}
 
 Reglas obligatorias:
 - ${languageRule}
@@ -159,25 +172,77 @@ Reglas obligatorias:
 - Divide el capítulo con subtítulos claros.
 - Incluye explicación, ejemplos concretos, errores a evitar, pasos prácticos y un ejercicio final.
 - No mezcles idiomas.
-- No menciones que estás reescribiendo.
-- Devuelve SOLO JSON válido: { "content": "texto completo del capítulo" }`;
+- No menciones que estás escribiendo o reescribiendo.
+- Devuelve SOLO JSON válido: { "title": "título localizado del capítulo", "content": "texto completo del capítulo" }`;
 
     try {
       const aiText = await callBookAi(env, prompt);
       const expanded = parseJson(aiText.text, aiText.provider);
       const content = String(expanded.content || "").trim();
-      return content ? { ...chapter, content } : chapter;
+      chapters.push({
+        ...chapter,
+        number: chapterNumber,
+        title: String(expanded.title || chapter.title || `${labels.chapter} ${chapterNumber}`).trim(),
+        content: content || chapter.content
+      });
     } catch {
-      return chapter;
+      chapters.push({ ...chapter, number: chapterNumber });
     }
-  }));
+  }
+
+  const frontMatter = await expandStudioFrontMatter(env, book, input);
 
   return {
     ...book,
-    introduction: ensureMinimumText(book.introduction, input, "introducción"),
-    conclusion: ensureMinimumText(book.conclusion, input, "conclusión"),
-    chapters
+    introduction: frontMatter.introduction,
+    conclusion: frontMatter.conclusion,
+    tableOfContents: chapters.map((chapter) => `${labels.chapter} ${chapter.number}: ${stripChapterPrefix(chapter.title)}`),
+    chapters,
   };
+}
+
+async function expandStudioFrontMatter(env, book, input) {
+  const introduction = String(book.introduction || "").trim();
+  const conclusion = String(book.conclusion || "").trim();
+  if (wordCount(introduction) >= 180 && wordCount(conclusion) >= 180 && !hasWrongLanguageLabels({ content: `${introduction}\n${conclusion}` }, input.language)) {
+    return { introduction, conclusion };
+  }
+
+  const labels = localizedLabels(input.language);
+  const prompt = `Completa la introducción y la conclusión de este ebook profesional.
+Título: ${book.title}
+Tema: ${input.topic}
+Audiencia: ${input.audience}
+Idioma obligatorio: ${input.language}
+
+Reglas:
+- ${languageInstruction(input.language)}
+- Escribe una ${labels.introduction} de mínimo 220 palabras y una ${labels.conclusion} de mínimo 220 palabras.
+- Mantén tono humano, específico y útil. No mezcles idiomas.
+- Devuelve SOLO JSON válido: { "introduction": "texto completo", "conclusion": "texto completo" }`;
+
+  try {
+    const aiText = await callBookAi(env, prompt);
+    const expanded = parseJson(aiText.text, aiText.provider);
+    return {
+      introduction: String(expanded.introduction || introduction || ensureMinimumText("", input, "introducción")).trim(),
+      conclusion: String(expanded.conclusion || conclusion || ensureMinimumText("", input, "conclusión")).trim()
+    };
+  } catch {
+    return {
+      introduction: ensureMinimumText(introduction, input, "introducción"),
+      conclusion: ensureMinimumText(conclusion, input, "conclusión")
+    };
+  }
+}
+
+function hasWrongLanguageLabels(chapter, language) {
+  if (!isArabicLanguage(language)) return false;
+  return /\b(cap[ií]tulo|secci[oó]n|introducci[oó]n|conclusi[oó]n|ejercicio|[ií]ndice)\b/i.test(`${chapter.title || ""}\n${chapter.content || ""}`);
+}
+
+function stripChapterPrefix(value) {
+  return String(value || "").replace(/^(Capítulo|Chapter|الفصل|Chapitre|Kapitel|Capitolo)\s*\d+[:.\s-]*/i, "").trim();
 }
 
 function ensureMinimumText(value, input, label) {
