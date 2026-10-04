@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const ebookFallbackModels = [
       "anthropic/claude-sonnet-4",
       "openai/gpt-4.1",
-      "google/gemini-3.1-pro-preview",
+      "google/gemini-2.5-flash",
       "google/gemini-2.5-flash",
       "openai/gpt-4o-mini"
     ];
