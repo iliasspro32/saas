@@ -69,7 +69,7 @@ export function getProvider(provider = "openrouter"): AIProvider {
 export const defaultModels = [
   { provider: "openrouter", model: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4 - Best for ebooks", premium: true },
   { provider: "openrouter", model: "openai/gpt-4.1", label: "GPT-4.1 - Long context", premium: true },
-  { provider: "openrouter", model: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro - Deep structure", premium: true },
+  { provider: "openrouter", model: "google/gemini-3.1-pro-preview", label: "Gemini 2.5 Pro - Deep structure", premium: true },
   { provider: "openrouter", model: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash - Fast draft", premium: false },
   { provider: "openrouter", model: "openai/gpt-4o-mini", label: "GPT-4o Mini - Low cost", premium: false }
 ];

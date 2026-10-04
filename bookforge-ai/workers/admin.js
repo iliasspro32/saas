@@ -64,7 +64,7 @@ async function saveConfig(request, env) {
   const next = {
     ...current,
     appUrl: clean(incoming.appUrl, current.appUrl || env.APP_URL || ""),
-    geminiModel: clean(incoming.geminiModel, current.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro"),
+    geminiModel: clean(incoming.geminiModel, current.geminiModel || env.GEMINI_MODEL || "gemini-3.1-pro-preview"),
     geminiMaxTokens: clean(incoming.geminiMaxTokens, current.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "12000"),
     aiProvider: clean(incoming.aiProvider, current.aiProvider || env.AI_PROVIDER || "gemini"),
     openRouterModel: clean(incoming.openRouterModel, current.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1"),
@@ -94,7 +94,7 @@ async function status(env) {
     adminProtected: Boolean(env.ADMIN_TOKEN || hasStoredAdmin),
     needsSetup: !env.ADMIN_TOKEN && !hasStoredAdmin,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
-    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro",
+    geminiModel: config.geminiModel || env.GEMINI_MODEL || "gemini-3.1-pro-preview",
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
     openRouterModel: config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1",
     aiProvider: config.aiProvider || env.AI_PROVIDER || "gemini",
@@ -110,7 +110,7 @@ async function testGemini(env) {
   const config = await readConfig(env);
   const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
   if (!apiKey) throw httpError("Falta GEMINI_API_KEY. Guarda una clave en Admin o usa wrangler secret put GEMINI_API_KEY.", 400);
-  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-pro";
+  const model = config.geminiModel || env.GEMINI_MODEL || "gemini-3.1-pro-preview";
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
