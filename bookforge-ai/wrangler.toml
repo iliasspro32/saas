@@ -10,7 +10,7 @@ kv_namespaces = [
 [vars]
 APP_URL = "https://bookforge-ai.pages.dev"
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.8-flash"
 GEMINI_MAX_TOKENS = "32000"
 AI_PROVIDER = "gemini"
 OPENROUTER_MODEL = "openai/gpt-4.1"
@@ -72,7 +72,7 @@ id = "00000000000000000000000000000000"
 
 [env.admin.vars]
 APP_URL = "https://bookforge-ai.pages.dev"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.8-flash"
 GEMINI_MAX_TOKENS = "32000"
 AI_PROVIDER = "gemini"
 OPENROUTER_MODEL = "openai/gpt-4.1"

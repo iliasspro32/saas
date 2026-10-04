@@ -91,7 +91,7 @@ function bindApiConfig() {
     const config = Object.fromEntries(new FormData(form).entries());
     state.apiConfig = {
       provider: config.provider || "gemini",
-      model: config.model || "gemini-2.5-flash",
+      model: config.model || "gemini-3.8-flash",
       apiKey: config.apiKey || "",
       maxTokens: Number(config.maxTokens || 32000)
     };
@@ -115,7 +115,7 @@ function bindApiConfig() {
 function hydrateApiConfigForm() {
   const form = document.getElementById("apiConfigForm");
   if (!form) return;
-  const config = state.apiConfig || { provider: "gemini", model: "gemini-2.5-flash", apiKey: "", maxTokens: 32000 };
+  const config = state.apiConfig || { provider: "gemini", model: "gemini-3.8-flash", apiKey: "", maxTokens: 32000 };
   form.elements.provider.value = config.provider;
   form.elements.model.value = config.model;
   form.elements.apiKey.value = config.apiKey || "";

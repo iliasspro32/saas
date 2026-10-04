@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
     const ebookFallbackModels = [
       "anthropic/claude-sonnet-4",
       "openai/gpt-4.1",
-      "google/gemini-2.5-flash",
-      "google/gemini-2.5-flash",
+      "google/gemini-3.8-flash",
+      "google/gemini-3.8-flash",
       "openai/gpt-4o-mini"
     ];
     const modelsToTry = template.key === "professional_ebook"

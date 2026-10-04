@@ -670,7 +670,7 @@ async function callClaude(env, prompt, pages, temperature = 0.7) {
 async function callGemini(env, prompt) {
   const config = await getAdminConfig(env);
   const apiKey = env.GEMINI_API_KEY || config.geminiApiKey;
-  const model = professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-flash", "gemini");
+  const model = professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-3.8-flash", "gemini");
   const maxTokens = Math.max(24000, Number(config.geminiMaxTokens || env.GEMINI_MAX_TOKENS || "32000"));
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
@@ -756,7 +756,7 @@ function professionalModel(model, provider) {
   const value = String(model || "").trim();
   const weak = /gpt-4o-mini|flash-lite|gemini-2\.0-flash|gemini-flash-1\.5|deepseek-chat/i.test(value);
   if (!value || weak) {
-    return provider === "openrouter" ? "openai/gpt-4.1" : "gemini-2.5-flash";
+    return provider === "openrouter" ? "openai/gpt-4.1" : "gemini-3.8-flash";
   }
   return value;
 }
@@ -864,7 +864,7 @@ async function health(env) {
   return json({
     ok: true,
     geminiConfigured: Boolean(env.GEMINI_API_KEY || config.geminiApiKey),
-    geminiModel: professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-2.5-flash", "gemini"),
+    geminiModel: professionalModel(config.geminiModel || env.GEMINI_MODEL || "gemini-3.8-flash", "gemini"),
     openRouterConfigured: Boolean(env.OPENROUTER_API_KEY || config.openRouterApiKey),
     openRouterModel: professionalModel(config.openRouterModel || env.OPENROUTER_MODEL || "openai/gpt-4.1", "openrouter"),
     aiProvider: Boolean(env.GEMINI_API_KEY || config.geminiApiKey) ? "gemini" : (config.aiProvider || env.AI_PROVIDER || "gemini"),
